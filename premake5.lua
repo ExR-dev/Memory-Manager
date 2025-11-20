@@ -3,7 +3,7 @@ require "vscode"
 
 workspace "Memory-Manager"
 
-    location("Generated")
+    location("./")
     cppdialect "C++23"
     warnings "Extra"
     fatalwarnings { "All" }
@@ -30,6 +30,8 @@ workspace "Memory-Manager"
     rootPath = path.getdirectory(_SCRIPT)
     targetBuildPath = path.getdirectory(_SCRIPT) .. "/Build/target"
     objBuildPath = path.getdirectory(_SCRIPT) .. "/Build/obj"
+
+    os.mkdir("Generated/Projects")
 
 include "External"
 include "Library"
