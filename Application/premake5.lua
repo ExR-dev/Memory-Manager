@@ -1,11 +1,11 @@
 project "Application"
 
     kind "ConsoleApp"
-    location(rootPath .. "/Generated/Projects")
+    location(rootPath .. "/Application")
 
     targetdir(targetBuildPath .. "/%{prj.name}")
     objdir(objBuildPath .. "/%{prj.name}")
-    files {"src/**.hpp", "src/**.cpp"}
+    files {"inc/**.hpp", "src/**.cpp"}
     includedirs{"../Library/include"}
 
     links{"Library"}
