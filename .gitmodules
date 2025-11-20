@@ -1,6 +1,6 @@
 [submodule "External/GoogleTest"]
 	path = External/GoogleTest
-	url = https://github.com/google/googletest.git
-[submodule "Tracy"]
+	url = git@github.com:google/googletest.git
+[submodule "External/Tracy"]
 	path = External/Tracy
-	url = https://github.com/wolfpld/tracy.git
+	url = git@github.com:wolfpld/tracy.git
