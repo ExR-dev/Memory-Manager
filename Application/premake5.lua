@@ -6,6 +6,7 @@ project "Application"
     targetdir(targetBuildPath .. "/%{prj.name}")
     objdir(objBuildPath .. "/%{prj.name}")
     files {"inc/**.hpp", "src/**.cpp"}
-    includedirs{"../Library/include", "inc"}
+    includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
+    dependson{"ImGui", "SDL3"}
 
     links{"Library"}
