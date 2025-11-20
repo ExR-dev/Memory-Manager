@@ -1,4 +1,5 @@
-#include "../inc/MemoryManager.hpp"
+#include "MemoryManager.hpp"
+#include "PageRegistry.hpp"
 
 Memory::MemoryManager::MemoryManager()
 {

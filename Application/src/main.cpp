@@ -1,7 +1,7 @@
 #include <iostream>
-#include <lib.h>
+#include <lib.hpp>
 
-#include "../inc/MemoryManager.hpp"
+#include "MemoryManager.hpp"
 
 int main()
 {
