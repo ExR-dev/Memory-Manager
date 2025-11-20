@@ -9,4 +9,7 @@ project "Application"
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
     dependson{"ImGui", "SDL3"}
 
-    links{"Library"}
+    local externalLibPath = targetBuildPath .. "/External/lib"
+    links{"Library",
+        externalLibPath .. "/ImGui",
+        externalLibPath .. "/SDL3"}

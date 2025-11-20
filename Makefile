@@ -58,7 +58,7 @@ ifneq (,$(Library_config))
 	@${MAKE} --no-print-directory -C Library -f Makefile config=$(Library_config)
 endif
 
-Application: Library
+Application: Library ImGui SDL3
 ifneq (,$(Application_config))
 	@echo "==== Building Application ($(Application_config)) ===="
 	@${MAKE} --no-print-directory -C Application -f Makefile config=$(Application_config)
