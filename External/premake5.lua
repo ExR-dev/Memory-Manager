@@ -6,7 +6,7 @@ project "GoogleTest"
     targetdir(targetBuildPath .. "/External")
     objdir(objBuildPath .. "/%{prj.name}")
 
-    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "\"" .. "/%{prj.name}"
+    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/%{prj.name}\""
 
     filter "system:windows"
         kind "Utility"
