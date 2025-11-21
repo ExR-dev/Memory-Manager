@@ -34,7 +34,7 @@ INCLUDES += -I../Library/include -I../Build/target/External/include -Iinc
 FORCE_INCLUDE +=
 ALL_CPPFLAGS += $(CPPFLAGS) -MD -MP $(DEFINES) $(INCLUDES)
 ALL_RESFLAGS += $(RESFLAGS) $(DEFINES) $(INCLUDES)
-LIBS += ../Build/target/Library/libLibrary.a
+LIBS += ../Build/target/Library/libLibrary.a -lImGui -lSDL3
 LDDEPS += ../Build/target/Library/libLibrary.a
 LINKCMD = $(CXX) -o "$@" $(OBJECTS) $(RESOURCES) $(ALL_LDFLAGS) $(LIBS)
 define PREBUILDCMDS
@@ -49,14 +49,14 @@ OBJDIR = ../Build/obj/Application/debug
 DEFINES += -DDEBUG
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -Werror -O0 -g -Wall -Wextra
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -Werror -O0 -g -Wall -Wextra -std=c++23
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib64 -m64
+ALL_LDFLAGS += $(LDFLAGS) -L../Build/target/External/lib -L/ -L/usr/lib64 -m64
 
 else ifeq ($(config),release)
 OBJDIR = ../Build/obj/Application/release
 DEFINES += -DNDEBUG
 ALL_CFLAGS += $(CFLAGS) $(ALL_CPPFLAGS) -m64 -Werror -O2 -Wall -Wextra
 ALL_CXXFLAGS += $(CXXFLAGS) $(ALL_CPPFLAGS) -m64 -Werror -O2 -Wall -Wextra -std=c++23
-ALL_LDFLAGS += $(LDFLAGS) -L/usr/lib64 -m64 -s
+ALL_LDFLAGS += $(LDFLAGS) -L../Build/target/External/lib -L/ -L/usr/lib64 -m64 -s
 
 endif
 
