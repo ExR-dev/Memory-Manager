@@ -1,7 +1,9 @@
+local projectsPath = rootPath .. "/Generated/Projects"
+
 project "GoogleTest"
 
     kind "StaticLib"
-    location(rootPath .. "/Generated/Projects")
+    location(projectsPath)
 
     targetdir(targetBuildPath .. "/External")
     objdir(objBuildPath .. "/%{prj.name}")
@@ -60,6 +62,7 @@ project "SDL3"
 project "ImGui"
     kind "StaticLib"
     location(projectsPath)
+    dependson("SDL3")
 
     warnings "Off"
 

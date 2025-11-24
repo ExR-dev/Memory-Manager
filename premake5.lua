@@ -3,7 +3,7 @@ require "vscode"
 
 workspace "Memory-Manager"
 
-    location("./")
+    location("Generated")
     cppdialect "C++23"
     warnings "Extra"
     fatalwarnings { "All" }
