@@ -14,7 +14,7 @@ Build
 Generated
 .vscode/
 .idea
-.sln
+*.sln
 Makefile
 *.make
 
