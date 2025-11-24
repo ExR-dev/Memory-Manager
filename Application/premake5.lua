@@ -17,4 +17,4 @@ project "Application"
         links{"SDL3-static", "imagehlp", "setupapi", "user32", "version", "uuid", "winmm", "imm32"}       
 
     filter "system:linux"
-        links{"SDL3"}
+        links{externalLibPath .. "/SDL3"}
