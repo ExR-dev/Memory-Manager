@@ -32,6 +32,9 @@ namespace MemoryInternal
 			if (!registry.m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Default max count
 
+			if (count == 0 || count > registry.m_maxCount)
+				return nullptr; // Failure: Invalid count
+
 			// Find first free region of sufficient size
 			AllocLink *prev = nullptr;
 			AllocLink *current = registry.m_freeRegions.get();
@@ -145,6 +148,7 @@ namespace MemoryInternal
 			return 0; // Success
 		}
 
+
 		static void DBG_PrintPage(int lineWidth)
 		{
 			PageRegistry<T> &registry = Get();
@@ -186,6 +190,18 @@ namespace MemoryInternal
 				putchar('\n');
 			}
 			putchar('\n');
+		}
+		const static std::vector<T> &DBG_GetPageStorage()
+		{
+			return Get().m_pageStorage;
+		}
+		const static std::unique_ptr<AllocLink> &DBG_GetFreeRegions()
+		{
+			return Get().m_freeRegions;
+		}
+		const static std::unordered_map<size_t, size_t> &DBG_GetAllocMap()
+		{
+			return Get().m_allocMap;
 		}
 
 	private:
