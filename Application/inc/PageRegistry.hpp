@@ -141,6 +141,8 @@ namespace MemoryInternal
 						registry.m_freeRegions = std::move(newLink);
 				}
 			}
+
+			return 0; // Success
 		}
 
 		static void DBG_PrintPage(int lineWidth)
