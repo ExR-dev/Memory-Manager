@@ -1,7 +1,9 @@
+local projectsPath = rootPath .. "/Generated/Projects"
+
 project "GoogleTest"
 
     kind "StaticLib"
-    location(rootPath .. "/Generated/Projects")
+    location(projectsPath)
 
     targetdir(targetBuildPath .. "/External")
     objdir(objBuildPath .. "/%{prj.name}")
@@ -23,7 +25,7 @@ project "GoogleTest"
             "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
-    
+
 project "SDL3"
     kind "StaticLib"
     location(projectsPath)
@@ -53,20 +55,20 @@ project "SDL3"
         kind "Makefile"
         buildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON",
+            "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DSDL_INSTALL=ON",
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
-    
+
 project "ImGui"
     kind "StaticLib"
     location(projectsPath)
+    dependson("SDL3")
 
     warnings "Off"
 
     targetdir(targetBuildPath .. "/External/lib/")
     objdir(objBuildPath .. "/%{prj.name}")
 
-    dependson("SDL3")
 
     files {
         "ImGui/imgui*.cpp",

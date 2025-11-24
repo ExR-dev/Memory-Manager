@@ -1,7 +1,7 @@
 project "Application"
 
     kind "ConsoleApp"
-    location(rootPath .. "/Application")
+    location(rootPath .. "/Generated/Projects")
 
     local externalLibPath = targetBuildPath .. "/External/lib"
     libdirs(externalLibPath)
@@ -11,6 +11,10 @@ project "Application"
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
     dependson{"ImGui", "SDL3"}
 
-    links{"Library",
-        "/ImGui",
-        "/SDL3"}
+    links{"Library", "ImGui"}
+
+    filter "system:windows"
+        links{"SDL3-static", "imagehlp", "setupapi", "user32", "version", "uuid", "winmm", "imm32"}       
+
+    filter "system:linux"
+        links{"SDL3"}
