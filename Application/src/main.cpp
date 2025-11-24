@@ -5,7 +5,17 @@
 #include "ImGui/imgui_impl_sdlrenderer3.h"
 #include "PageRegistry.hpp"
 
+#include "StackAllocator.hpp"
+
 #include <stdio.h>
+#include <iostream>
+
+struct TestStruct {
+    int a = 1;
+    int b = 2;
+    bool c = false;
+    std::string d = "Foobar!";
+};
 
 int main()
 {
@@ -52,6 +62,69 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+
+    int foo = 3;
+    int bar = 5;
+    bool baz = true;
+    std::string testStr = "Hiya!";
+
+    StackAllocator stackAllocator;
+    size_t fooPtr = stackAllocator.Push(&foo, sizeof(foo));
+    size_t barPtr = stackAllocator.Push(&bar, sizeof(bar));
+    size_t bazPtr = stackAllocator.Push(&baz, sizeof(baz));
+    size_t strPtr = stackAllocator.Push(&testStr, sizeof(testStr));
+
+    std::cout << "The value of foo is " << foo << ", the stack start position of it is " << fooPtr << std::endl;
+    std::cout << "The value of bar is " << bar << ", the stack start position of it is " << barPtr << std::endl;
+    std::cout << "The value of baz is " << baz << ", the stack start position of it is " << bazPtr << std::endl;
+    std::cout << "The value of testStr is " << testStr << ", the stack start position of it is " << strPtr << std::endl;
+
+    int* x = (int*)stackAllocator.At(fooPtr);
+    int* y = (int*)stackAllocator.At(barPtr);
+    bool* z = (bool*)stackAllocator.At(bazPtr);
+    std::string* w = (std::string*)stackAllocator.At(strPtr);
+
+    std::cout << "The value of foo after getting it back is " << *x << std::endl;
+    std::cout << "The value of bar after getting it back is " << *y << std::endl;
+    std::cout << "The value of baz after getting it back is " << *z << std::endl;
+    std::cout << "The value of testStr after getting it back is " << *w << std::endl;
+
+    int intA = 42;
+    int intB = -234;
+    std::string stringA = "Testing number one";
+    bool boolA = false;
+    unsigned int uintA = 234332;
+    TestStruct structA;
+    std::array<int, 5> arrayA = { 43, 44, 45, 46, 47 };
+    std::string stringB = "well here I am now";
+
+    size_t intAPtr = stackAllocator.Push(&intA, sizeof(intA));
+    size_t intBPtr = stackAllocator.Push(&intB, sizeof(intB));
+    size_t stringAPtr = stackAllocator.Push(&stringA, sizeof(stringA));
+    size_t boolAPtr = stackAllocator.Push(&boolA, sizeof(boolA));
+    size_t uintAPtr = stackAllocator.Push(&uintA, sizeof(uintA));
+    size_t structAPtr = stackAllocator.Push(&structA, sizeof(structA));
+    size_t arrayAPtr = stackAllocator.Push(&arrayA, sizeof(arrayA));
+    size_t stringBPtr = stackAllocator.Push(&stringB, sizeof(stringB));
+
+    std::cout << "The value of intA after getting it back is " << *(int*)stackAllocator.At(intAPtr) << std::endl;
+    std::cout << "The value of intB after getting it back is " << *(int*)stackAllocator.At(intBPtr) << std::endl;
+    std::cout << "The value of stringA after getting it back is " << *(std::string*)stackAllocator.At(stringAPtr) << std::endl;
+    std::cout << "The value of boolA after getting it back is " << *(bool*)stackAllocator.At(boolAPtr) << std::endl;
+    std::cout << "The value of uintA after getting it back is " << *(unsigned int*)stackAllocator.At(uintAPtr) << std::endl;
+    TestStruct ts = *(TestStruct*)stackAllocator.At(structAPtr);
+    std::cout << "The value of structA after getting it back is {" << ts.a << ", " << ts.b << ", " << ts.c << ", " << ts.d << "}" << std::endl;
+    std::array<int, 5> arr = *(std::array<int, 5>*)stackAllocator.At(arrayAPtr);
+    std::cout << "The value of arrayA after getting it back is {";
+    for (size_t i = 0; i < arr.size(); i++)
+    {
+        std::cout << arr[i];
+        if (i != arr.size() - 1)
+            std::cout << ", ";
+    }
+    std::cout << "}" << std::endl;
+    std::cout << "The value of stringB after getting it back is " << *(std::string*)stackAllocator.At(stringBPtr) << std::endl;
+
     // Main loop
     bool done = false;
     while (!done)
@@ -95,6 +168,42 @@ int main()
         }
 
 
+        intA = 31;
+        intB = -3214;
+        stringA = "Testing number two";
+        boolA = true;
+        uintA = 9879834;
+        structA;
+        arrayA = { 43, 4214, 5125, 46, 47 };
+        stringB = "well here I am now again";
+
+        intAPtr = stackAllocator.Push(&intA, sizeof(intA));
+        intBPtr = stackAllocator.Push(&intB, sizeof(intB));
+        stringAPtr = stackAllocator.Push(&stringA, sizeof(stringA));
+        boolAPtr = stackAllocator.Push(&boolA, sizeof(boolA));
+        uintAPtr = stackAllocator.Push(&uintA, sizeof(uintA));
+        structAPtr = stackAllocator.Push(&structA, sizeof(structA));
+        arrayAPtr = stackAllocator.Push(&arrayA, sizeof(arrayA));
+        stringBPtr = stackAllocator.Push(&stringB, sizeof(stringB));
+
+        std::cout << "The value of intA after getting it back is " << *(int*)stackAllocator.At(intAPtr) << std::endl;
+        std::cout << "The value of intB after getting it back is " << *(int*)stackAllocator.At(intBPtr) << std::endl;
+        std::cout << "The value of stringA after getting it back is " << *(std::string*)stackAllocator.At(stringAPtr) << std::endl;
+        std::cout << "The value of boolA after getting it back is " << *(bool*)stackAllocator.At(boolAPtr) << std::endl;
+        std::cout << "The value of uintA after getting it back is " << *(unsigned int*)stackAllocator.At(uintAPtr) << std::endl;
+        ts = *(TestStruct*)stackAllocator.At(structAPtr);
+        std::cout << "The value of structA after getting it back is {" << ts.a << ", " << ts.b << ", " << ts.c << ", " << ts.d << "}" << std::endl;
+        arr = *(std::array<int, 5>*)stackAllocator.At(arrayAPtr);
+        std::cout << "The value of arrayA after getting it back is {";
+        for (size_t i = 0; i < arr.size(); i++)
+        {
+            std::cout << arr[i];
+            if (i != arr.size() - 1)
+                std::cout << ", ";
+        }
+        std::cout << "}" << std::endl;
+        std::cout << "The value of stringB after getting it back is " << *(std::string*)stackAllocator.At(stringBPtr) << std::endl;
+
 
         // Rendering
         ImGui::Render();
@@ -103,6 +212,8 @@ int main()
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+
+        stackAllocator.Reset();
     }
 
 
