@@ -10,6 +10,17 @@ constexpr size_t DEFAULT_PAGE_SIZE = (1 << 12);
 
 namespace MemoryInternal
 {
+	struct AllocLink
+	{
+		size_t offset;
+		size_t size;
+		std::unique_ptr<AllocLink> next;
+
+		AllocLink(size_t off, size_t sz)
+			: offset(off), size(sz), next(nullptr) {
+		}
+	};
+
 	template <typename T>
 	class PageRegistry
 	{
@@ -69,9 +80,12 @@ namespace MemoryInternal
 				return -1;
 
 			size_t offset = ptr - registry.m_pageStorage.data();
+
 			auto it = registry.m_allocMap.find(offset);
 			if (it == registry.m_allocMap.end())
 				return -2; // Failure: Invalid pointer or size
+
+			size_t count = it->second;
 
 			// Remove from alloc map
 			registry.m_allocMap.erase(it);
@@ -129,23 +143,56 @@ namespace MemoryInternal
 			}
 		}
 
-	private:
-		struct AllocLink
+		static void DBG_PrintPage(int lineWidth)
 		{
-			size_t offset;
-			size_t size;
-			std::unique_ptr<AllocLink> next;
+			PageRegistry<T> &registry = Get();
+			if (!registry.m_initialized)
+			{
+				printf("PageRegistry not initialized.\n");
+				return;
+			}
 
-			AllocLink(size_t off, size_t sz)
-				: offset(off), size(sz), next(nullptr) {}
-		};
+			char pageStr[DEFAULT_PAGE_SIZE + 1]{};
+			memset(pageStr, '.', DEFAULT_PAGE_SIZE);
+			pageStr[DEFAULT_PAGE_SIZE] = '\0';
 
+			char allocID = 'a';
+			for (const auto &alloc : registry.m_allocMap)
+			{
+				size_t offset = alloc.first;
+				size_t size = alloc.second;
+
+				for (size_t pos = offset; pos < offset + size; ++pos)
+				{
+					if (pageStr[pos] != '.')
+						pageStr[pos] = '?'; // Overlap indication
+					else if (pos < DEFAULT_PAGE_SIZE)
+						pageStr[pos] = allocID;
+				}
+
+				allocID++;
+			}
+
+			// Print the page representation
+			for (size_t i = 0; i < DEFAULT_PAGE_SIZE; i += lineWidth)
+			{
+				printf("%04zx: ", i);
+				for (size_t j = 0; j < lineWidth && (i + j) < DEFAULT_PAGE_SIZE; ++j)
+				{
+					putchar(pageStr[i + j]);
+				}
+				putchar('\n');
+			}
+			putchar('\n');
+		}
+
+	private:
 		std::vector<T> m_pageStorage;
 		std::unique_ptr<AllocLink> m_freeRegions;
 		std::unordered_map<size_t, size_t> m_allocMap; // Offset to size mapping
 
-		bool m_initialized;
-		size_t m_maxCount;
+		bool m_initialized = false;
+		size_t m_maxCount = 0;
 
 
 		PageRegistry() = default;
@@ -178,4 +225,16 @@ namespace MemoryInternal
 			return 0; // Success
 		}
 	};
+
+	template <typename T>
+	[[nodiscard]] inline T *Alloc(size_t count)
+	{
+		return PageRegistry<T>::Alloc(count);
+	}
+
+	template <typename T>
+	inline int Free(T *ptr)
+	{
+		return PageRegistry<T>::Free(ptr);
+	}
 }
