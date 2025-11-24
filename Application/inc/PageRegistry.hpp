@@ -17,8 +17,7 @@ namespace MemoryInternal
 		std::unique_ptr<AllocLink> next;
 
 		AllocLink(size_t off, size_t sz)
-			: offset(off), size(sz), next(nullptr) {
-		}
+			: offset(off), size(sz), next(nullptr) { }
 	};
 
 	template <typename T>
