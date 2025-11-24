@@ -148,7 +148,15 @@ namespace MemoryInternal
 			return 0; // Success
 		}
 
-
+		static void DBG_Reset()
+		{
+			PageRegistry<T> &registry = Get();
+			registry.m_pageStorage.clear();
+			registry.m_freeRegions.reset();
+			registry.m_allocMap.clear();
+			registry.m_initialized = false;
+			registry.m_maxCount = 0;
+		}
 		static void DBG_PrintPage(int lineWidth)
 		{
 			PageRegistry<T> &registry = Get();

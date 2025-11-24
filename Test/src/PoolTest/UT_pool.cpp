@@ -45,6 +45,8 @@ TEST(PoolTest, AllocFree)
 {
 	using namespace MemoryInternal;
 
+	PageRegistry<int>::DBG_Reset();
+
 	int *allocInt = Alloc<int>(1);
 	
 	(*allocInt) = 69;
@@ -57,6 +59,8 @@ TEST(PoolTest, AllocFree)
 TEST(PoolTest, DuplicateAlloc)
 {
 	using namespace MemoryInternal;
+
+	PageRegistry<int>::DBG_Reset();
 
 	int *allocArray[3]{};
 	int allocSizes[3] = { 5, 10, 18 };
@@ -84,12 +88,16 @@ TEST(PoolTest, UnorderedAlloc)
 {
 	using namespace MemoryInternal;
 
-	int *allocArray[3]{};
+	PageRegistry<int>::DBG_Reset();
+
+	int *allocArray[3]{ nullptr, nullptr, nullptr };
 	int allocSizes[3] = { 5, 10, 18 };
 		
 	for (int i = 0; i < 3; ++i)
 	{
 		allocArray[i] = Alloc<int>(allocSizes[i]);
+
+		ASSERT_EQ(allocArray[i] != nullptr, true);
 
 		for (int j = 0; j < allocSizes[i]; ++j)
 			allocArray[i][j] = i * 100 + j;
@@ -108,6 +116,8 @@ TEST(PoolTest, UnorderedAlloc)
 TEST(PoolTest, ReuseFreedSpace)
 {
 	using namespace MemoryInternal;
+
+	PageRegistry<int>::DBG_Reset();
 
 	int *alloc1 = Alloc<int>(10);
 	int *alloc2 = Alloc<int>(20);
@@ -131,6 +141,8 @@ TEST(PoolTest, ReuseFreedSpace)
 TEST(PoolTest, AllocFreeEdgeCases)
 {
 	using namespace MemoryInternal;
+
+	PageRegistry<int>::DBG_Reset();
 
 	int *allocInt = Alloc<int>(1);
 
@@ -160,6 +172,10 @@ TEST(PoolTest, AllocFreeEdgeCases)
 TEST(PoolTest, AllocFreeMultipleTypes)
 {
 	using namespace MemoryInternal;
+
+	PageRegistry<int>::DBG_Reset();
+	PageRegistry<double>::DBG_Reset();
+	PageRegistry<char>::DBG_Reset();
 
 	int *allocInt = Alloc<int>(10);
 	double *allocDouble = Alloc<double>(5);
