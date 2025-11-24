@@ -1,13 +1,15 @@
 project "Application"
 
     kind "ConsoleApp"
-    location(rootPath .. "/Generated/Projects")
+    location(rootPath .. "/Generated")
 
     local externalLibPath = targetBuildPath .. "/External/lib"
     libdirs(externalLibPath)
     targetdir(targetBuildPath .. "/%{prj.name}")
     objdir(objBuildPath .. "/%{prj.name}")
-    files {"inc/**.hpp", "src/**.cpp"}
+
+    files {rootPath .. "/Application/inc/**.hpp", rootPath .. "/Application/src/**.cpp"}
+
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
     dependson{"ImGui", "SDL3"}
 
