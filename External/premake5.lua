@@ -55,7 +55,7 @@ project "SDL3"
         kind "Makefile"
         buildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DSDL_INSTALL=OFF",
+            "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DSDL_INSTALL=ON",
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
