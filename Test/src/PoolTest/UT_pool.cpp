@@ -1,5 +1,6 @@
 #include "../../../Application/inc/PageRegistry.hpp"
 #include <gtest/gtest.h>
+#include <benchmark/benchmark.h>
 
 template <typename T>
 bool IsAddressAllocated(T *addr)

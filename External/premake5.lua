@@ -26,6 +26,33 @@ project "GoogleTest"
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
+project "GoogleBenchmark"
+
+    kind "StaticLib"
+    location(projectsPath)
+
+    targetdir(targetBuildPath .. "/External")
+    objdir(objBuildPath .. "/%{prj.name}")
+
+    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/%{prj.name}\""
+
+    filter "system:windows"
+        kind "Utility"
+        prebuildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }
+
+    filter "system:linux"
+        kind "Makefile"
+        buildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }
+
+
 project "SDL3"
     kind "StaticLib"
     location(projectsPath)
@@ -91,3 +118,55 @@ project "ImGui"
         "{COPY} " .. rootPath .. "/External/ImGui/backends/imgui_impl_sdlrenderer3.h " .. copyPath,
         "{COPY} " .. rootPath .. "/External/ImGui/backends/imgui_impl_sdl3.h " .. copyPath
     }
+
+project "TracyClient"
+
+    kind "StaticLib"
+    location(projectsPath)
+
+    targetdir(targetBuildPath .. "/External")
+    objdir(objBuildPath .. "/TracyClient")
+
+    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/Tracy\""
+
+    filter "system:windows"
+        kind "Utility"
+        prebuildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }
+
+    filter "system:linux"
+        kind "Makefile"
+        buildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }
+
+project "TracyServer"
+
+    kind "StaticLib"
+    location(projectsPath)
+
+    targetdir(targetBuildPath .. "/External")
+    objdir(objBuildPath .. "/TracyServer")
+
+    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/Tracy\""
+
+    filter "system:windows"
+        kind "Utility"
+        prebuildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }
+
+    filter "system:linux"
+        kind "Makefile"
+        buildcommands{
+            "{MKDIR} %{prj.objdir}",
+            "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
+            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+        }

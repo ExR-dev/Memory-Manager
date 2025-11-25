@@ -5,10 +5,21 @@
 #include "ImGui/imgui_impl_sdlrenderer3.h"
 #include "PageRegistry.hpp"
 
-#include <stdio.h>
+#include "StackAllocator.hpp"
+
+#include <cstdio>
+#include <iostream>
+
+struct TestStruct {
+    int a = 1;
+    int b = 2;
+    bool c = false;
+    std::string d = "Foobar!";
+};
 
 int main()
 {
+    StackAllocator stackAllocator;
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         printf("Error: SDL_Init(): %s\n", SDL_GetError());
@@ -95,7 +106,6 @@ int main()
         }
 
 
-
         // Rendering
         ImGui::Render();
         SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
@@ -103,6 +113,8 @@ int main()
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+
+        stackAllocator.Reset();
     }
 
 
