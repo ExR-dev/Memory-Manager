@@ -2,6 +2,20 @@
 #include <gtest/gtest.h>
 #include <benchmark/benchmark.h>
 
+#pragma warning(disable: 6262) // Disable stack size warning
+
+// Types
+
+struct TestStruct
+{
+	int a;
+	double b;
+	char c;
+};
+
+
+// Helper functions
+
 template <typename T>
 bool IsAddressAllocated(T *addr)
 {
@@ -10,13 +24,27 @@ bool IsAddressAllocated(T *addr)
 	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
 	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	for (const auto &alloc : allocMap)
-	{
-		const T *beginAddr = &pageStorage[alloc.first];
-		const T *endAddr = beginAddr + alloc.second;
+	size_t addrOffset = addr - pageStorage.data();
 
-		if (addr >= beginAddr && addr < endAddr)
+	// Step back from addrOffset to find the allocation start
+	size_t i = addrOffset;
+
+	while (i >= 0)
+	{
+		if (allocMap[i] == (size_t)-1)
+		{
+			--i;
+			continue;
+		}
+
+		if (addrOffset < i + allocMap[i])
+		{
 			return true;
+		}
+		else
+		{
+			return false; // Not found
+		}
 	}
 
 	return false;
@@ -30,17 +58,34 @@ size_t GetAllocatedSize(T *addr)
 	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
 	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	for (const auto &alloc : allocMap)
-	{
-		const T *beginAddr = &pageStorage[alloc.first];
-		const T *endAddr = beginAddr + alloc.second;
+	size_t addrOffset = addr - pageStorage.data();
 
-		if (addr >= beginAddr && addr < endAddr)
-			return alloc.second * sizeof(T);
+	// Step back from addrOffset to find the allocation start
+	size_t i = addrOffset;
+
+	while (i >= 0)
+	{
+		if (allocMap[i] == (size_t)-1)
+		{
+			--i;
+			continue;
+		}
+
+		if (addrOffset < i + allocMap[i])
+		{
+			return allocMap[i];
+		}
+		else
+		{
+			return 0; // Not found
+		}
 	}
 
 	return 0;
 }
+
+
+// Tests
 
 TEST(PoolTest, AllocFree)
 {
@@ -92,23 +137,23 @@ TEST(PoolTest, UnorderedAlloc)
 	PageRegistry<int>::DBG_Reset();
 
 	int *allocArray[3]{ nullptr, nullptr, nullptr };
-	int allocSizes[3] = { 5, 10, 18 };
+	int allocSizes[3]{ 5, 10, 18 };
 		
 	for (int i = 0; i < 3; ++i)
 	{
 		allocArray[i] = Alloc<int>(allocSizes[i]);
 
-		ASSERT_EQ(allocArray[i] != nullptr, true);
+		ASSERT_TRUE(allocArray[i] != nullptr);
 
 		for (int j = 0; j < allocSizes[i]; ++j)
 			allocArray[i][j] = i * 100 + j;
 	}
 
-	ASSERT_EQ(IsAddressAllocated<int>(allocArray[1]), true);
+	ASSERT_TRUE(IsAddressAllocated<int>(allocArray[1]));
 
 	Free<int>(allocArray[1]);
 	
-	ASSERT_EQ(IsAddressAllocated<int>(allocArray[1]), false);
+	ASSERT_FALSE(IsAddressAllocated<int>(allocArray[1]));
 	
 	Free<int>(allocArray[0]);
 	Free<int>(allocArray[2]);
@@ -126,7 +171,7 @@ TEST(PoolTest, ReuseFreedSpace)
 	ASSERT_EQ(IsAddressAllocated<int>(alloc1), true);
 	ASSERT_EQ(IsAddressAllocated<int>(alloc2), true);
 
-	Free<int>(alloc1);
+	ASSERT_EQ(Free<int>(alloc1), 0);
 
 	ASSERT_EQ(IsAddressAllocated<int>(alloc1), false);
 	ASSERT_EQ(IsAddressAllocated<int>(alloc2), true);
@@ -135,8 +180,8 @@ TEST(PoolTest, ReuseFreedSpace)
 
 	ASSERT_EQ(alloc3, alloc1); // Should reuse freed space
 
-	Free<int>(alloc2);
-	Free<int>(alloc3);
+	ASSERT_EQ(Free<int>(alloc2), 0);
+	ASSERT_EQ(Free<int>(alloc3), 0);
 }
 
 TEST(PoolTest, AllocFreeEdgeCases)
@@ -146,6 +191,7 @@ TEST(PoolTest, AllocFreeEdgeCases)
 	PageRegistry<int>::DBG_Reset();
 
 	int *allocInt = Alloc<int>(1);
+	ASSERT_TRUE(allocInt != nullptr);
 
 	// Freeing nullptr
 	int result = Free<int>(nullptr);
@@ -182,6 +228,10 @@ TEST(PoolTest, AllocFreeMultipleTypes)
 	double *allocDouble = Alloc<double>(5);
 	char *allocChar = Alloc<char>(20);
 
+	ASSERT_TRUE(allocInt != nullptr);
+	ASSERT_TRUE(allocDouble != nullptr);
+	ASSERT_TRUE(allocChar != nullptr);
+
 	for (int i = 0; i < 10; ++i)
 		allocInt[i] = i * 10;
 	for (int i = 0; i < 5; ++i)
@@ -200,3 +250,210 @@ TEST(PoolTest, AllocFreeMultipleTypes)
 	ASSERT_EQ(Free<double>(allocDouble), 0);
 	ASSERT_EQ(Free<char>(allocChar), 0);
 }
+
+TEST(PoolTest, StructAlloc)
+{
+	using namespace MemoryInternal;
+
+	PageRegistry<TestStruct>::DBG_Reset();
+
+	TestStruct *allocStruct = Alloc<TestStruct>(10);
+
+	ASSERT_TRUE(allocStruct != nullptr);
+
+	for (int i = 0; i < 10; ++i)
+	{
+		allocStruct[i].a = i;
+		allocStruct[i].b = i * 0.1;
+		allocStruct[i].c = 'A' + (char)i;
+	}
+
+	for (int i = 0; i < 10; ++i)
+	{
+		ASSERT_EQ(allocStruct[i].a, i);
+		ASSERT_EQ(allocStruct[i].b, i * 0.1);
+		ASSERT_EQ(allocStruct[i].c, 'A' + (char)i);
+	}
+
+	ASSERT_EQ(Free<TestStruct>(allocStruct), 0);
+}
+
+TEST(PoolTest, UnorderedAllocFreeStress)
+{
+	using namespace MemoryInternal;
+
+	PageRegistry<float>::DBG_Reset();
+
+	constexpr int allocCount = 10000;
+	constexpr int maxConcurrentAllocs = 100;
+	constexpr int maxAllocSize = 32;
+
+	float *allocs[allocCount]{ nullptr };
+	std::vector<int> currAllocs;
+
+	for (int i = 0; i < allocCount; )
+	{
+		if (currAllocs.size() > 0)
+		{
+			// Free a random number of current allocations
+			int freeCount = rand() % (currAllocs.size() / 5 + 1);
+
+			for (int j = 0; j < freeCount; ++j)
+			{
+				if (currAllocs.size() <= 0)
+					break;
+
+				int currAllocIndex = rand() % currAllocs.size();
+				int freeIdx = currAllocs[currAllocIndex];
+
+				// Before freeing, set the memory to 0 for verification
+				size_t allocSize = GetAllocatedSize<float>(allocs[freeIdx]) / sizeof(float);
+				for (size_t k = 0; k < allocSize; ++k)
+				{
+					if (allocs[freeIdx])
+						allocs[freeIdx][k] = 0.0f;
+				}
+
+				ASSERT_EQ(Free<float>(allocs[freeIdx]), 0);
+
+				allocs[freeIdx] = nullptr;
+				currAllocs.erase(currAllocs.begin() + currAllocIndex);
+			}
+		}
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			if (currAllocs.size() >= maxConcurrentAllocs)
+				break;
+
+			int allocSize = (rand() % maxAllocSize) + 1;
+			int allocIdx = -1;
+
+			// Find a free slot
+			for (int k = 0; k < allocCount; ++k)
+			{
+				if (allocs[k] == nullptr)
+				{
+					allocIdx = k;
+					break;
+				}
+			}
+
+			if (allocIdx == -1)
+				continue;
+
+			ASSERT_TRUE(allocIdx != -1);
+			float *newAlloc = Alloc<float>(allocSize);
+			ASSERT_TRUE(newAlloc != nullptr);
+
+			allocs[allocIdx] = newAlloc;
+			currAllocs.push_back(allocIdx);
+			
+			++i;
+
+			// Fill allocation with the allocation index for verification
+			for (int k = 0; k < allocSize; ++k)
+			{
+				newAlloc[k] = static_cast<float>(i);
+			}
+		}
+	}
+
+	// Free remaining allocations
+	for (int i = 0; i < currAllocs.size(); ++i)
+	{
+		int allocIdx = currAllocs[i];
+		ASSERT_EQ(Free<float>(allocs[allocIdx]), 0);
+	}
+}
+
+TEST(PoolTest, StdUnorderedAllocFreeStress)
+{
+	constexpr int allocCount = 10000;
+	constexpr int maxConcurrentAllocs = 100;
+	constexpr int maxAllocSize = 32;
+
+	float *allocs[allocCount]{ nullptr };
+	std::vector<int> currAllocs;
+
+	for (int i = 0; i < allocCount; )
+	{
+		if (currAllocs.size() > 0)
+		{
+			// Free a random number of current allocations
+			int freeCount = rand() % (currAllocs.size() / 5 + 1);
+
+			for (int j = 0; j < freeCount; ++j)
+			{
+				if (currAllocs.size() <= 0)
+					break;
+
+				int currAllocIndex = rand() % currAllocs.size();
+				int freeIdx = currAllocs[currAllocIndex];
+
+				// Before freeing, set the memory to 0 for verification
+				size_t allocSize = GetAllocatedSize<float>(allocs[freeIdx]) / sizeof(float);
+				for (size_t k = 0; k < allocSize; ++k)
+				{
+					if (allocs[freeIdx])
+						allocs[freeIdx][k] = 0.0f;
+				}
+
+				delete[] allocs[freeIdx];
+
+				allocs[freeIdx] = nullptr;
+				currAllocs.erase(currAllocs.begin() + currAllocIndex);
+			}
+		}
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			if (currAllocs.size() >= maxConcurrentAllocs)
+				break;
+
+			int allocSize = (rand() % maxAllocSize) + 1;
+			int allocIdx = -1;
+
+			// Find a free slot
+			for (int k = 0; k < allocCount; ++k)
+			{
+				if (allocs[k] == nullptr)
+				{
+					allocIdx = k;
+					break;
+				}
+			}
+
+			if (allocIdx == -1)
+				continue;
+
+			ASSERT_TRUE(allocIdx != -1);
+			float *newAlloc = new float[allocSize];
+			ASSERT_TRUE(newAlloc != nullptr);
+
+			allocs[allocIdx] = newAlloc;
+			currAllocs.push_back(allocIdx);
+
+			++i;
+
+			// Fill allocation with the allocation index for verification
+			for (int k = 0; k < allocSize; ++k)
+			{
+				newAlloc[k] = static_cast<float>(i);
+			}
+		}
+	}
+
+	// Free remaining allocations
+	for (int i = 0; i < currAllocs.size(); ++i)
+	{
+		int allocIdx = currAllocs[i];
+		delete[] allocs[allocIdx];
+	}
+}
+
+#pragma warning(default: 6262) // Reset stack size warning

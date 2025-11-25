@@ -84,14 +84,15 @@ namespace MemoryInternal
 
 			size_t offset = ptr - registry.m_pageStorage.data();
 
-			auto it = registry.m_allocMap.find(offset);
-			if (it == registry.m_allocMap.end())
-				return -2; // Failure: Invalid pointer or size
+			if (offset >= registry.m_maxCount)
+				return -2; // Failure: Invalid pointer
 
-			size_t count = it->second;
+			size_t count = registry.m_allocMap[offset];
+			if (count == (size_t)-1)
+				return -3; // Failure: Not allocated
 
 			// Remove from alloc map
-			registry.m_allocMap.erase(it);
+			registry.m_allocMap[offset] = (size_t)-1;
 
 			// Handle case where pool is full
 			if (!registry.m_freeRegions)
@@ -102,46 +103,54 @@ namespace MemoryInternal
 			else
 			{
 				// Find correct position to insert freed region
-				AllocLink *left = nullptr;
-				AllocLink *right = registry.m_freeRegions.get();
+				// such that the insertion point falls after 'left' and before 'right'
+				std::unique_ptr<AllocLink> *left = nullptr;
+				std::unique_ptr<AllocLink> *right = &registry.m_freeRegions;
 
-				while (right)
+				while (*right)
 				{
-					if (offset < right->offset)
+					if (offset < right->get()->offset)
 						break;
 
 					left = right;
-					right = right->next.get();
+					right = &right->get()->next;
 				}
 
 				// If regions are contiguous, merge them instead of creating a new link
-				if (left && (left->offset + left->size == offset))
+				if (left && *left && (left->get()->offset + left->get()->size == offset))
 				{
-					left->size += count;
+					left->get()->size += count;
 
-					if (right && (offset + count == right->offset))
+					if (right && (offset + count == right->get()->offset))
 					{
 						// Merge with next region as well
-						left->size += right->size;
-						left->next = std::move(right->next);
+						left->get()->size += right->get()->size;
+						left->get()->next = std::move(right->get()->next);
 					}
 				}
-				else if (right && (offset + count == right->offset))
+				else if (*right && (offset + count == right->get()->offset))
 				{
 					// Merge with next region
-					right->offset = offset;
-					right->size += count;
+					right->get()->offset = offset;
+					right->get()->size += count;
 				}
-				else
+				else // Region is not contiguous with either side, insert new link
 				{
 					// Insert new free region
 					auto newLink = std::make_unique<AllocLink>(offset, count);
-					newLink->next = std::move(left ? left->next : registry.m_freeRegions->next);
 
-					if (left)
-						left->next = std::move(newLink);
-					else
+					if (*right && !left)
+					{
+						// Inserting at head
+						newLink->next = std::move(registry.m_freeRegions);
 						registry.m_freeRegions = std::move(newLink);
+					}
+					else if (left && *left)
+					{
+						// Inserting in middle or end
+						newLink->next = std::move(left->get()->next);
+						left->get()->next = std::move(newLink);
+					}
 				}
 			}
 
@@ -171,8 +180,13 @@ namespace MemoryInternal
 			pageStr[DEFAULT_PAGE_SIZE] = '\0';
 
 			char allocID = 'a';
-			for (const auto &alloc : registry.m_allocMap)
+			for (int i = 0; i < registry.m_allocMap.size(); ++i)
 			{
+				const auto &alloc = registry.m_allocMap[i];
+
+				if (alloc == (size_t)-1 || alloc == (size_t)0)
+					continue; // Not allocated
+
 				size_t offset = alloc.first;
 				size_t size = alloc.second;
 
@@ -185,6 +199,7 @@ namespace MemoryInternal
 				}
 
 				allocID++;
+				i += size - 1; // Skip to end of this allocation
 			}
 
 			// Print the page representation
@@ -201,21 +216,30 @@ namespace MemoryInternal
 		}
 		const static std::vector<T> &DBG_GetPageStorage()
 		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
 			return Get().m_pageStorage;
 		}
 		const static std::unique_ptr<AllocLink> &DBG_GetFreeRegions()
 		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
 			return Get().m_freeRegions;
 		}
-		const static std::unordered_map<size_t, size_t> &DBG_GetAllocMap()
+		const static std::vector<size_t> &DBG_GetAllocMap()
 		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
 			return Get().m_allocMap;
 		}
 
 	private:
 		std::vector<T> m_pageStorage;
 		std::unique_ptr<AllocLink> m_freeRegions;
-		std::unordered_map<size_t, size_t> m_allocMap; // Offset to size mapping
+		std::vector<size_t> m_allocMap; // Offset to size mapping
 
 		bool m_initialized = false;
 		size_t m_maxCount = 0;
@@ -244,9 +268,12 @@ namespace MemoryInternal
 				return -3; // Failure: Max count must be a power of two
 
 			registry.m_pageStorage.resize(maxCount);
+			registry.m_allocMap.resize(maxCount);
 			registry.m_maxCount = maxCount;
 			registry.m_freeRegions = std::make_unique<AllocLink>(0, maxCount);
 			registry.m_initialized = true;
+
+			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), (size_t)-1);
 
 			return 0; // Success
 		}
