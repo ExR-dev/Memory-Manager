@@ -10,5 +10,5 @@ project "Test"
 
     libdirs{targetBuildPath .. "/External/lib"}
 
-    dependson {"GoogleTest", "Library"}
-    links{"Library", "gtest", "benchmark"}
+    dependson {"GoogleTest", "Library", "TracyClient", "TracyServer"}
+    links{"Library", "gtest", "benchmark", "tracy"}
