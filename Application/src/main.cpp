@@ -7,7 +7,7 @@
 
 #include "StackAllocator.hpp"
 
-#include <stdio.h>
+#include <cstdio>
 #include <iostream>
 
 struct TestStruct {
@@ -173,7 +173,7 @@ int main()
         stringA = "Testing number two";
         boolA = true;
         uintA = 9879834;
-        structA;
+        structA = {};
         arrayA = { 43, 4214, 5125, 46, 47 };
         stringB = "well here I am now again";
 
