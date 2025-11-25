@@ -1,4 +1,12 @@
 local projectsPath = rootPath .. "/Generated/Projects"
+local rtLib = ""
+
+filter "configurations:release"
+    rtLib = "\'MultiThreaded\'"
+
+ filter "configurations:debug"
+     rtLib = "\'MultiThreadedDebug\'"
+
 
 project "GoogleTest"
 
@@ -12,9 +20,10 @@ project "GoogleTest"
 
     filter "system:windows"
         kind "Utility"
+
         prebuildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
@@ -40,7 +49,7 @@ project "GoogleBenchmark"
         kind "Utility"
         prebuildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
@@ -68,16 +77,16 @@ project "SDL3"
         filter "configurations:release"
             prebuildcommands{
                 "{MKDIR} %{prj.objdir}",
-                "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreaded'",
+                "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
                 "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
             }
 
-        filter "configurations:debug"
+        --[[filter "configurations:debug"
             prebuildcommands{
                 "{MKDIR} %{prj.objdir}",
                 "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
                 "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-            }
+            }]]--
     filter "system:linux"
         kind "Makefile"
         buildcommands{
@@ -133,7 +142,7 @@ project "TracyClient"
         kind "Utility"
         prebuildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
@@ -157,9 +166,10 @@ project "TracyServer"
 
     filter "system:windows"
         kind "Utility"
+
         prebuildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY='MultiThreadedDebug'",
+            "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
