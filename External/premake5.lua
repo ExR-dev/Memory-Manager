@@ -49,7 +49,7 @@ project "GoogleBenchmark"
         kind "Utility"
         prebuildcommands{
             "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
+            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
