@@ -3,7 +3,7 @@
 #include <array>
 #include <iostream>
 
-#define STACK_SIZE 1 << 14
+constexpr size_t STACK_SIZE = 1 << 14;
 typedef std::unique_ptr<std::array<char, STACK_SIZE>> StorageType;
 
 class StackAllocator
@@ -37,8 +37,7 @@ public:
 
 		for (size_t i = 0; i < size; i++)
 		{
-			char* foo = (char*)data;
-			begin[m_top] = foo[i];
+			begin[m_top] = ((char*)data)[i];
 			m_top++;
 		}
 
@@ -58,5 +57,10 @@ public:
 	StorageType& DBG_GetStack()
 	{
 		return m_stack;
+	}
+
+	constexpr size_t DBG_GetMaxSize()
+	{
+		return STACK_SIZE;
 	}
 };
