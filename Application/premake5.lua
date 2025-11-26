@@ -1,5 +1,4 @@
 project "Application"
-
     kind "ConsoleApp"
     location(rootPath .. "/Generated")
 
@@ -11,9 +10,9 @@ project "Application"
     files {rootPath .. "/Application/inc/**.hpp", rootPath .. "/Application/src/**.cpp"}
 
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
-    dependson{"ImGui", "SDL3"}
+    dependson{"ImGui", "SDL3", "TracyClient"}
 
-    links{"Library", "ImGui"}
+    links{"Library", "ImGui", "TracyClient"}
 
     filter "system:windows"
         links{"SDL3-static", "imagehlp", "setupapi", "user32", "version", "uuid", "winmm", "imm32"}       

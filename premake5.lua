@@ -13,6 +13,8 @@ workspace "Memory-Manager"
         "release"
     }
 
+    os.execute("git submodule update --recursive")
+
     architecture "x86_64"
     staticruntime "on"
 

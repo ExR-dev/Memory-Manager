@@ -9,7 +9,6 @@ filter "configurations:release"
 
 
 project "GoogleTest"
-
     kind "StaticLib"
     location(projectsPath)
 
@@ -35,32 +34,6 @@ project "GoogleTest"
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
-project "GoogleBenchmark"
-
-    kind "StaticLib"
-    location(projectsPath)
-
-    targetdir(targetBuildPath .. "/External")
-    objdir(objBuildPath .. "/%{prj.name}")
-
-    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/%{prj.name}\""
-
-    filter "system:windows"
-        kind "Utility"
-        prebuildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
-
-    filter "system:linux"
-        kind "Makefile"
-        buildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
-
 
 project "SDL3"
     kind "StaticLib"
@@ -74,12 +47,11 @@ project "SDL3"
     filter "system:windows"
         kind "Utility"
 
-        filter "configurations:release"
-            prebuildcommands{
-                "{MKDIR} %{prj.objdir}",
-                "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-                "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-            }
+		prebuildcommands{
+			"{MKDIR} %{prj.objdir}",
+			"cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
+			"cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+		}
 
         --[[filter "configurations:debug"
             prebuildcommands{
@@ -129,30 +101,41 @@ project "ImGui"
     }
 
 project "TracyClient"
-
     kind "StaticLib"
     location(projectsPath)
 
-    targetdir(targetBuildPath .. "/External")
+    warnings "off"
+
+    targetdir(targetBuildPath .. "/External/lib/")
     objdir(objBuildPath .. "/TracyClient")
 
     libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/Tracy\""
+	
+    files {
+        "Tracy/public/TracyClient.cpp",
+    }
 
-    filter "system:windows"
-        kind "Utility"
-        prebuildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
+    includedirs{
+        "Tracy/server/",
+        "Tracy/public/",
+        "Tracy/public/client/",
+        "Tracy/public/common/",
+        "Tracy/public/libbacktrace/",
+        "Tracy/public/tracy/",
+        targetBuildPath .. "/External/include/"
+    }
 
-    filter "system:linux"
-        kind "Makefile"
-        buildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DTRACY_STATIC=ON -DTRACY_LTO=ON -DTRACY_ON_DEMAND=ON -DTRACY_ONLY_LOCALHOST=ON -DTRACY_NO_BROADCAST=ON -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
+    mkdirPath = "\"" .. targetBuildPath .. "/External/include/%{prj.name}\""
+    copyPath = "\"" .. targetBuildPath .. "/External/include/%{prj.name}\""
+
+    prebuildcommands{
+        "{MKDIR} " .. mkdirPath,
+        "{COPY} " .. rootPath .. "/External/Tracy/server/*.h* " .. copyPath .. "/server",
+        "{COPY} " .. rootPath .. "/External/Tracy/public/client/*.h* " .. copyPath .. "/public/client",
+        "{COPY} " .. rootPath .. "/External/Tracy/public/common/*.h* " .. copyPath .. "/public/common",
+        "{COPY} " .. rootPath .. "/External/Tracy/public/libbacktrace/*.h* " .. copyPath .. "/public/libbacktrace",
+        "{COPY} " .. rootPath .. "/External/Tracy/public/tracy/*.h* " .. copyPath .. "/public/tracy",
+    }
 
 project "TracyServer"
 
@@ -168,9 +151,11 @@ project "TracyServer"
         kind "Utility"
 
         prebuildcommands{
-            "{MKDIR} %{prj.objdir}",
+            --[[
+			"{MKDIR} %{prj.objdir}",
             "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+			--]]
         }
 
     filter "system:linux"
