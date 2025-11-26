@@ -9,7 +9,6 @@ filter "configurations:release"
 
 
 project "GoogleTest"
-
     kind "StaticLib"
     location(projectsPath)
 
@@ -104,6 +103,8 @@ project "ImGui"
 project "TracyClient"
     kind "StaticLib"
     location(projectsPath)
+
+    warnings "off"
 
     targetdir(targetBuildPath .. "/External/lib/")
     objdir(objBuildPath .. "/TracyClient")
