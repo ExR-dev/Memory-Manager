@@ -6,11 +6,18 @@
 #include <chrono>
 #include <iostream>
 
+struct TestStruct
+{
+	int a[16];
+	double b[8];
+	size_t c[64];
+};
 
-constexpr int allocCount = 1000;
+
+constexpr int allocCount = 2500;
 constexpr int maxConcurrentAllocs = 32;
-constexpr int maxAllocSize = 1 << 11;
-constexpr size_t pageSize = 1ull << 16;
+constexpr int maxAllocSize = 1 << 9;
+constexpr size_t pageSize = 1ull << 14;
 
 
 static float StressTestAlloc()
@@ -19,10 +26,10 @@ static float StressTestAlloc()
 
 	using namespace MemoryInternal;
 
-	PageRegistry<float>::Reset();
-	PageRegistry<float>::Initialize(pageSize);
+	//PageRegistry<float>::Reset();
+	PageRegistry<TestStruct>::Initialize(pageSize);
 
-	std::vector<float *> allocs;
+	std::vector<TestStruct *> allocs;
 	std::vector<int> currAllocs;
 
 	allocs.resize(allocCount, nullptr);
@@ -49,7 +56,7 @@ static float StressTestAlloc()
 				int currAllocIndex = rand() % currAllocs.size();
 				int freeIdx = currAllocs[currAllocIndex];
 
-				Free<float>(allocs[freeIdx]);
+				Free<TestStruct>(allocs[freeIdx]);
 
 				allocs[freeIdx] = nullptr;
 				currAllocs.erase(currAllocs.begin() + currAllocIndex);
@@ -81,7 +88,7 @@ static float StressTestAlloc()
 			if (allocIdx == -1)
 				continue;
 
-			float *newAlloc = Alloc<float>(allocSize);
+			TestStruct *newAlloc = Alloc<TestStruct>(allocSize);
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
@@ -91,7 +98,7 @@ static float StressTestAlloc()
 			// Fill allocation with the allocation index for verification
 			for (int k = 0; k < allocSize; ++k)
 			{
-				newAlloc[k] = static_cast<float>(i);
+				newAlloc[k].a[0] = i;
 			}
 		}
 	}
@@ -100,7 +107,7 @@ static float StressTestAlloc()
 	for (int i = 0; i < currAllocs.size(); ++i)
 	{
 		int allocIdx = currAllocs[i];
-		Free<float>(allocs[allocIdx]);
+		Free<TestStruct>(allocs[allocIdx]);
 	}
 
 	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
@@ -112,7 +119,7 @@ static float StressTestNew()
 {
 	ZoneScopedC(tracy::Color::Yellow);
 
-	std::vector<float *> allocs;
+	std::vector<TestStruct *> allocs;
 	std::vector<int> currAllocs;
 
 	allocs.resize(allocCount, nullptr);
@@ -171,7 +178,7 @@ static float StressTestNew()
 			if (allocIdx == -1)
 				continue;
 
-			float *newAlloc = new float[allocSize];
+			TestStruct *newAlloc = new TestStruct[allocSize];
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
@@ -181,7 +188,7 @@ static float StressTestNew()
 			// Fill allocation with the allocation index for verification
 			for (int k = 0; k < allocSize; ++k)
 			{
-				newAlloc[k] = static_cast<float>(i);
+				newAlloc[k].a[0] = i;
 			}
 		}
 	}
@@ -233,4 +240,5 @@ void PerfTests::RunPoolPerfTests()
 
 	std::cout << "Pool Alloc Average Time: " << avgAllocTime << " ms\n";
 	std::cout << "New/Delete Average Time: " << avgNewTime << " ms\n";
+	std::cout << "\n";
 }
