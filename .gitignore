@@ -414,3 +414,5 @@ Application/Application.vcxproj.filters
 *.filters
 
 !Temp/**
+
+TracyExecutable
