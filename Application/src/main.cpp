@@ -1,3 +1,5 @@
+//#undef TRACY_ENABLE
+
 #include "SDL3/SDL.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_sdl3.h"
