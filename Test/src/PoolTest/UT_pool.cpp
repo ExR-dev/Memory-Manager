@@ -28,9 +28,9 @@ bool IsAddressAllocated(T *addr)
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
 
-	while (i >= 0 && i < allocMap.size())
+	while (i < allocMap.size())
 	{
-		if (allocMap[i] == (size_t)-1)
+		if (allocMap[i] == NULL_INDEX)
 		{
 			--i;
 			continue;
@@ -62,9 +62,9 @@ size_t GetAllocatedSize(T *addr)
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
 
-	while (i >= 0 && i < allocMap.size())
+	while (i < allocMap.size())
 	{
-		if (allocMap[i] == (size_t)-1)
+		if (allocMap[i] == NULL_INDEX)
 		{
 			--i;
 			continue;

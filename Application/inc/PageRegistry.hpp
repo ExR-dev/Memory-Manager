@@ -11,6 +11,8 @@
 
 namespace MemoryInternal
 {
+	constexpr size_t NULL_INDEX = static_cast<size_t>(-1);
+
 	constexpr size_t DEFAULT_PAGE_SIZE = (1 << 13);
 
 	struct AllocLink
@@ -19,9 +21,9 @@ namespace MemoryInternal
 		size_t size;
 		size_t next;
 
-		AllocLink() : offset(0), size(0), next((size_t)-1) { }
+		AllocLink() : offset(0), size(0), next(NULL_INDEX) { }
 		AllocLink(size_t off, size_t sz)
-			: offset(off), size(sz), next((size_t)-1) { }
+			: offset(off), size(sz), next(NULL_INDEX) { }
 	};
 
 	template <typename T>
@@ -49,7 +51,7 @@ namespace MemoryInternal
 			registry.m_initialized = true;
 			registry.m_freeRegionsRoot = 0;
 
-			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), (size_t)-1);
+			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), NULL_INDEX);
 			std::fill(registry.m_freeRegionLinkStorage.begin(), registry.m_freeRegionLinkStorage.end(), AllocLink(0, 0));
 
 			registry.m_freeRegionLinkStorage[0] = AllocLink(0, maxCount);
@@ -78,12 +80,12 @@ namespace MemoryInternal
 				return nullptr; // Failure: Invalid count
 
 			// Find first free region of sufficient size
-			size_t prev = (size_t)-1;
+			size_t prev = NULL_INDEX;
 			size_t current = registry.m_freeRegionsRoot;
 
 			auto &freeRegions = registry.m_freeRegionLinkStorage;
 
-			while (current != (size_t)-1)
+			while (current != NULL_INDEX)
 			{
 				if (freeRegions[current].size >= count)
 				{
@@ -96,7 +98,7 @@ namespace MemoryInternal
 					// Remove the link if no space left
 					if (freeRegions[current].size == 0)
 					{
-						if (prev != (size_t)-1)
+						if (prev != NULL_INDEX)
 						{
 							freeRegions[prev].next = freeRegions[current].next;
 						}
@@ -136,19 +138,19 @@ namespace MemoryInternal
 				return -2; // Failure: Invalid pointer
 
 			size_t count = registry.m_allocMap[offset];
-			if (count == (size_t)-1)
+			if (count == NULL_INDEX)
 				return -3; // Failure: Not allocated
 
 			// Unregister allocation in tracy
 			TracyFree(ptr);
 
 			// Remove from alloc map
-			registry.m_allocMap[offset] = (size_t)-1;
+			registry.m_allocMap[offset] = NULL_INDEX;
 
 			auto &freeRegions = registry.m_freeRegionLinkStorage;
 
 			// Handle case where pool is full
-			if (registry.m_freeRegionsRoot == (size_t)-1)
+			if (registry.m_freeRegionsRoot == NULL_INDEX)
 			{
 				// Add this allocation as the only free region
 				size_t newLinkIndex = registry.FindFreeRegion();
@@ -159,10 +161,10 @@ namespace MemoryInternal
 			{
 				// Find correct position to insert freed region
 				// such that the insertion point falls after 'left' and before 'right'
-				size_t left = (size_t)-1;
+				size_t left = NULL_INDEX;
 				size_t right = registry.m_freeRegionsRoot;
 
-				while (right != (size_t)-1)
+				while (right != NULL_INDEX)
 				{
 					if (offset < freeRegions[right].offset)
 						break;
@@ -172,7 +174,7 @@ namespace MemoryInternal
 				}
 
 				// If regions are contiguous, merge them instead of creating a new link
-				if (left != (size_t)-1 && (freeRegions[left].offset + freeRegions[left].size == offset))
+				if (left != NULL_INDEX && (freeRegions[left].offset + freeRegions[left].size == offset))
 				{
 					freeRegions[left].size += count;
 
@@ -185,7 +187,7 @@ namespace MemoryInternal
 						freeRegions[right] = AllocLink(0, 0); // Mark as unused
 					}
 				}
-				else if (right != (size_t)-1 && (offset + count == freeRegions[right].offset))
+				else if (right != NULL_INDEX && (offset + count == freeRegions[right].offset))
 				{
 					// Merge with next region
 					freeRegions[right].offset = offset;
@@ -197,13 +199,13 @@ namespace MemoryInternal
 					size_t newLinkIndex = registry.FindFreeRegion();
 					freeRegions[newLinkIndex] = AllocLink(offset, count);
 
-					if (right != (size_t)-1 && left == (size_t)-1)
+					if (right != NULL_INDEX && left == NULL_INDEX)
 					{
 						// Inserting at head
 						freeRegions[newLinkIndex].next = registry.m_freeRegionsRoot;
 						registry.m_freeRegionsRoot = newLinkIndex;
 					}
-					else if (left != (size_t)-1)
+					else if (left != NULL_INDEX)
 					{
 						// Inserting in middle or end
 						freeRegions[newLinkIndex].next = freeRegions[left].next;
@@ -249,7 +251,7 @@ namespace MemoryInternal
 
 		std::vector<T> m_pageStorage;
 		std::vector<size_t> m_allocMap; // Offset to size mapping
-		size_t m_freeRegionsRoot = (size_t)-1;
+		size_t m_freeRegionsRoot = NULL_INDEX;
 
 		bool m_initialized = false;
 		size_t m_maxCount = 0;
@@ -274,7 +276,7 @@ namespace MemoryInternal
 			}
 
 			// No free link found
-			return (size_t)-1;
+			return NULL_INDEX;
 		}
 	};
 
