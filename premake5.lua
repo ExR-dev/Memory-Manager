@@ -13,18 +13,20 @@ workspace "Memory-Manager"
         "release"
     }
 
+    os.execute("git submodule update --recursive")
+
     architecture "x86_64"
     staticruntime "on"
 
     filter "configurations:debug"
         runtime "Debug"
-        defines { "DEBUG" }
+        defines { "DEBUG", "TRACY_ENABLE" }
         symbols "On"
         optimize "Off"
 
     filter "configurations:release"
         runtime "Release"
-        defines { "NDEBUG" }
+        defines { "NDEBUG", "TRACY_ENABLE" }
         optimize "On"
 
     rootPath = path.getdirectory(_SCRIPT)

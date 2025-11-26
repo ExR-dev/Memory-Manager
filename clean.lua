@@ -7,5 +7,9 @@ newaction {
         os.rmdir("./.vs")
         os.rmdir("./.idea")
         os.rmdir("./Build")
+        os.remove("./**/**.vcxproj**")
+        os.remove("**.vcxproj")
+        os.remove("Makefile")
+        os.remove("./**/Makefile")
     end
 }

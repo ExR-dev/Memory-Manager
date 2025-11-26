@@ -1,13 +1,33 @@
-
 #include "SDL3/SDL.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_sdl3.h"
 #include "ImGui/imgui_impl_sdlrenderer3.h"
+#include "TracyClient/public/tracy/Tracy.hpp"
 
-#include <stdio.h>
+#include "PageRegistry.hpp"
+#include "StackAllocator.hpp"
+#include "BuddyAllocator.hpp"
+#include "MemPerfTests.hpp"
+
+#include <cstdio>
+#include <iostream>
+
+struct TestStruct {
+    int a = 1;
+    int b = 2;
+    bool c = false;
+    std::string d = "Foobar!";
+};
 
 int main()
 {
+#ifdef TRACY_ENABLE
+    SDL_Delay(500);
+#endif
+
+    ZoneScopedC(tracy::Color::AliceBlue);
+    
+    StackAllocator stackAllocator;
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         printf("Error: SDL_Init(): %s\n", SDL_GetError());
@@ -51,13 +71,44 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+    BuddyAllocator buddyAllocator;
+    void* foo = buddyAllocator.Alloc(75 * 1000);
+    void* bar = buddyAllocator.Alloc(36 * 1000);
+    void* baz = buddyAllocator.Alloc(36 * 1000);
+    buddyAllocator.Alloc(128 * 1000);
+    buddyAllocator.Alloc(200 * 1000);
+    buddyAllocator.Alloc(30 * 1000);
+    buddyAllocator.Alloc(100 * 1000);
+    buddyAllocator.Alloc(128 * 1000);
+
+    std::cout << "The first alloc was placed at " << foo << std::endl;
+    std::cout << "The second alloc was placed at " << bar << std::endl;
+    buddyAllocator.PrintAllocatedIndices();
+    buddyAllocator.Free(bar);
+    buddyAllocator.Free(baz);
+    buddyAllocator.PrintAllocatedIndices();
+
+    buddyAllocator.Alloc(128 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+    buddyAllocator.Alloc(36 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+
+    buddyAllocator.Alloc(500 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+    
+    FrameMark;
+    
     // Main loop
     bool done = false;
     while (!done)
     {
+        ZoneNamedNC(mainLoopZone, "Main Loop", tracy::Color::Beige, true);
+
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
+            ZoneNamedNC(sdlPollZone, "SDL Poll Event", tracy::Color::VioletRed, true);
+
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
                 done = true;
@@ -72,6 +123,8 @@ int main()
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
+            ZoneNamedNC(imguiWindowZone, "ImGui Window", tracy::Color::Firebrick4, true);
+
             static float f = 0.0f;
             static int counter = 0;
 
@@ -89,10 +142,14 @@ int main()
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
 
+            if (ImGui::Button("Run Pool Performance Tests"))
+            {
+                PerfTests::RunPoolPerfTests();
+			}
+
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
         }
-
 
 
         // Rendering
@@ -102,8 +159,11 @@ int main()
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
-    }
 
+        stackAllocator.Reset();
+
+        FrameMark;
+    }
 
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
