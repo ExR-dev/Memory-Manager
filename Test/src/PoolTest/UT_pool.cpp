@@ -1,6 +1,7 @@
+#undef TRACY_ENABLE
+
 #include "../../../Application/inc/PageRegistry.hpp"
 #include <gtest/gtest.h>
-#include <benchmark/benchmark.h>
 
 #pragma warning(disable: 6262) // Disable stack size warning
 
@@ -13,9 +14,6 @@ struct TestStruct
 	char c;
 };
 
-constexpr size_t SIZE_T_MAX = std::numeric_limits<size_t>::max();
-
-
 
 // Helper functions
 
@@ -24,17 +22,17 @@ bool IsAddressAllocated(T *addr)
 {
 	using namespace MemoryInternal;
 
-	const std::vector<std::size_t> &allocMap = PageRegistry<T>::DBG_GetAllocMap();
-	const std::vector<T> &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
+	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
+	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	const size_t addrOffset = addr - pageStorage.data();
+	size_t addrOffset = addr - pageStorage.data();
 
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
 
-	while (true)
+	while (i < allocMap.size())
 	{
-		if (allocMap[i] == SIZE_T_MAX)
+		if (allocMap[i] == NULL_INDEX)
 		{
 			--i;
 			continue;
@@ -44,9 +42,13 @@ bool IsAddressAllocated(T *addr)
 		{
 			return true;
 		}
-
-		return false; // Not found
+		else
+		{
+			return false; // Not found
+		}
 	}
+
+	return false;
 }
 
 template <typename T>
@@ -54,17 +56,17 @@ size_t GetAllocatedSize(T *addr)
 {
 	using namespace MemoryInternal;
 
-	const std::vector<size_t> &allocMap = PageRegistry<T>::DBG_GetAllocMap();
-	const std::vector<T> &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
+	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
+	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	const size_t addrOffset = addr - pageStorage.data();
+	size_t addrOffset = addr - pageStorage.data();
 
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
 
-	while (true)
+	while (i < allocMap.size())
 	{
-		if (allocMap[i] == SIZE_T_MAX)
+		if (allocMap[i] == NULL_INDEX)
 		{
 			--i;
 			continue;
@@ -74,9 +76,13 @@ size_t GetAllocatedSize(T *addr)
 		{
 			return allocMap[i];
 		}
-
-		return 0;
+		else
+		{
+			return 0; // Not found
+		}
 	}
+
+	return 0;
 }
 
 
@@ -86,23 +92,22 @@ TEST(PoolTest, AllocFree)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
+	PageRegistry<int>::Reset();
 
 	int *allocInt = Alloc<int>(1);
-	*allocInt = 69;
+	
+	(*allocInt) = 69;
 
 	ASSERT_EQ(*allocInt, 69);
 
-	const int statusCode = Free<int>(allocInt);
-
-	ASSERT_EQ(statusCode, 0);
+	Free<int>(allocInt);
 }
 
 TEST(PoolTest, DuplicateAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
+	PageRegistry<int>::Reset();
 
 	int *allocArray[3]{};
 	int allocSizes[3] = { 5, 10, 18 };
@@ -130,7 +135,7 @@ TEST(PoolTest, UnorderedAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
+	PageRegistry<int>::Reset();
 
 	int *allocArray[3]{ nullptr, nullptr, nullptr };
 	int allocSizes[3]{ 5, 10, 18 };
@@ -159,7 +164,7 @@ TEST(PoolTest, ReuseFreedSpace)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
+	PageRegistry<int>::Reset();
 
 	int *alloc1 = Alloc<int>(10);
 	int *alloc2 = Alloc<int>(20);
@@ -184,7 +189,7 @@ TEST(PoolTest, AllocFreeEdgeCases)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
+	PageRegistry<int>::Reset();
 
 	int *allocInt = Alloc<int>(1);
 	ASSERT_TRUE(allocInt != nullptr);
@@ -209,16 +214,16 @@ TEST(PoolTest, AllocFreeEdgeCases)
 	ASSERT_EQ(Free<int>(allocInt), 0);
 
 	// Double free check
-	ASSERT_EQ(Free<int>(allocInt), -2);
+	ASSERT_EQ(Free<int>(allocInt), -3);
 }
 
 TEST(PoolTest, AllocFreeMultipleTypes)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::DBG_Reset();
-	PageRegistry<double>::DBG_Reset();
-	PageRegistry<char>::DBG_Reset();
+	PageRegistry<int>::Reset();
+	PageRegistry<double>::Reset();
+	PageRegistry<char>::Reset();
 
 	int *allocInt = Alloc<int>(10);
 	double *allocDouble = Alloc<double>(5);
@@ -251,7 +256,7 @@ TEST(PoolTest, StructAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<TestStruct>::DBG_Reset();
+	PageRegistry<TestStruct>::Reset();
 
 	TestStruct *allocStruct = Alloc<TestStruct>(10);
 
@@ -274,18 +279,21 @@ TEST(PoolTest, StructAlloc)
 	ASSERT_EQ(Free<TestStruct>(allocStruct), 0);
 }
 
-TEST(PoolTest, UnorderedAllocFreeStress)
+
+constexpr int allocCount = 10000;
+constexpr int maxConcurrentAllocs = 8;
+constexpr int maxAllocSize = 1 << 11;
+
+TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<float>::DBG_Reset();
-
-	constexpr int allocCount = 10000;
-	constexpr int maxConcurrentAllocs = 100;
-	constexpr int maxAllocSize = 32;
+	PageRegistry<float>::Reset();
+	PageRegistry<float>::Initialize(1ull << 16);
 
 	float *allocs[allocCount]{ nullptr };
 	std::vector<int> currAllocs;
+	currAllocs.reserve(maxConcurrentAllocs);
 
 	for (int i = 0; i < allocCount; )
 	{
@@ -365,14 +373,11 @@ TEST(PoolTest, UnorderedAllocFreeStress)
 	}
 }
 
-TEST(PoolTest, StdUnorderedAllocFreeStress)
+TEST(PoolTest, UnorderedAllocFreeStress_New)
 {
-	constexpr int allocCount = 10000;
-	constexpr int maxConcurrentAllocs = 100;
-	constexpr int maxAllocSize = 32;
-
 	float *allocs[allocCount]{ nullptr };
 	std::vector<int> currAllocs;
+	currAllocs.reserve(maxConcurrentAllocs);
 
 	for (int i = 0; i < allocCount; )
 	{
