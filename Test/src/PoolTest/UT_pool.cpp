@@ -14,6 +14,9 @@ struct TestStruct
 	char c;
 };
 
+constexpr size_t SIZE_T_MAX = std::numeric_limits<size_t>::max();
+
+
 
 // Helper functions
 
@@ -22,10 +25,10 @@ bool IsAddressAllocated(T *addr)
 {
 	using namespace MemoryInternal;
 
-	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
-	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
+	const std::vector<std::size_t> &allocMap = PageRegistry<T>::DBG_GetAllocMap();
+	const std::vector<T> &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	size_t addrOffset = addr - pageStorage.data();
+	const size_t addrOffset = addr - pageStorage.data();
 
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
@@ -42,13 +45,9 @@ bool IsAddressAllocated(T *addr)
 		{
 			return true;
 		}
-		else
-		{
-			return false; // Not found
-		}
-	}
 
-	return false;
+		return false; // Not found
+	}
 }
 
 template <typename T>
@@ -56,10 +55,10 @@ size_t GetAllocatedSize(T *addr)
 {
 	using namespace MemoryInternal;
 
-	const auto &allocMap = PageRegistry<T>::DBG_GetAllocMap();
-	const auto &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
+	const std::vector<size_t> &allocMap = PageRegistry<T>::DBG_GetAllocMap();
+	const std::vector<T> &pageStorage = PageRegistry<T>::DBG_GetPageStorage();
 
-	size_t addrOffset = addr - pageStorage.data();
+	const size_t addrOffset = addr - pageStorage.data();
 
 	// Step back from addrOffset to find the allocation start
 	size_t i = addrOffset;
@@ -76,13 +75,9 @@ size_t GetAllocatedSize(T *addr)
 		{
 			return allocMap[i];
 		}
-		else
-		{
-			return 0; // Not found
-		}
-	}
 
-	return 0;
+		return 0;
+	}
 }
 
 
@@ -95,12 +90,13 @@ TEST(PoolTest, AllocFree)
 	PageRegistry<int>::Reset();
 
 	int *allocInt = Alloc<int>(1);
-	
-	(*allocInt) = 69;
+	*allocInt = 69;
 
 	ASSERT_EQ(*allocInt, 69);
 
-	Free<int>(allocInt);
+	const int statusCode = Free<int>(allocInt);
+
+	ASSERT_EQ(statusCode, 0);
 }
 
 TEST(PoolTest, DuplicateAlloc)
