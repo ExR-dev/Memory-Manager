@@ -1,18 +1,22 @@
 #include "MemPerfTests.hpp"
 #include "PageRegistry.hpp"
 
+#include "TracyClient/public/tracy/Tracy.hpp"
+
 #include <chrono>
 #include <iostream>
 
 
-constexpr int allocCount = 10000;
-constexpr int maxConcurrentAllocs = 64;
-constexpr int maxAllocSize = 1 << 10;
+constexpr int allocCount = 1000;
+constexpr int maxConcurrentAllocs = 32;
+constexpr int maxAllocSize = 1 << 11;
 constexpr size_t pageSize = 1ull << 16;
 
 
 static float StressTestAlloc()
 {
+	ZoneScopedC(tracy::Color::Green);
+
 	using namespace MemoryInternal;
 
 	PageRegistry<float>::Reset();
@@ -28,6 +32,8 @@ static float StressTestAlloc()
 
 	for (int i = 0; i < allocCount; )
 	{
+		ZoneNamedNC(allocIterZone, "Allocation Loop", tracy::Color::DeepPink, true);
+
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
@@ -35,6 +41,8 @@ static float StressTestAlloc()
 
 			for (int j = 0; j < freeCount; ++j)
 			{
+				ZoneNamedNC(freeZone, "Free", tracy::Color::Indigo, true);
+
 				if (currAllocs.size() <= 0)
 					break;
 
@@ -52,6 +60,8 @@ static float StressTestAlloc()
 		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
 		for (int j = 0; j < newAllocs; ++j)
 		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::MistyRose4, true);
+
 			if (currAllocs.size() >= maxConcurrentAllocs)
 				break;
 
@@ -100,6 +110,8 @@ static float StressTestAlloc()
 
 static float StressTestNew()
 {
+	ZoneScopedC(tracy::Color::Yellow);
+
 	std::vector<float *> allocs;
 	std::vector<int> currAllocs;
 
@@ -110,6 +122,8 @@ static float StressTestNew()
 
 	for (int i = 0; i < allocCount; )
 	{
+		ZoneNamedNC(allocIterZone, "Allocation Loop", tracy::Color::DeepPink, true);
+
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
@@ -117,6 +131,8 @@ static float StressTestNew()
 
 			for (int j = 0; j < freeCount; ++j)
 			{
+				ZoneNamedNC(freeZone, "Free", tracy::Color::Indigo, true);
+
 				if (currAllocs.size() <= 0)
 					break;
 
@@ -134,6 +150,8 @@ static float StressTestNew()
 		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
 		for (int j = 0; j < newAllocs; ++j)
 		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::MistyRose4, true);
+
 			if (currAllocs.size() >= maxConcurrentAllocs)
 				break;
 
@@ -183,6 +201,8 @@ static float StressTestNew()
 
 void PerfTests::RunPoolPerfTests()
 {
+	ZoneScopedC(tracy::Color::Red);
+
 	int iterations = 32;
 
 	std::vector<float> allocTimes;
@@ -193,6 +213,8 @@ void PerfTests::RunPoolPerfTests()
 
 	for (int i = 0; i < iterations; ++i)
 	{
+		ZoneNamedNC(perfTestIterLoopZone, "Iteration Loop", tracy::Color::Aqua, true);
+
 		allocTimes.push_back(StressTestAlloc());
 		newTimes.push_back(StressTestNew());
 	}

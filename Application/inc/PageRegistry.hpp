@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <cstring>
 
+#include "TracyClient/public/tracy/Tracy.hpp"
+
 namespace MemoryInternal
 {
 	constexpr size_t DEFAULT_PAGE_SIZE = (1 << 13);
@@ -110,6 +112,9 @@ namespace MemoryInternal
 					// Add to alloc map
 					registry.m_allocMap[allocOffset] = count;
 
+					// Register allocation in tracy
+					TracyAlloc(&registry.m_pageStorage[allocOffset], count * sizeof(T));
+
 					return &registry.m_pageStorage[allocOffset];
 				}
 
@@ -133,6 +138,9 @@ namespace MemoryInternal
 			size_t count = registry.m_allocMap[offset];
 			if (count == (size_t)-1)
 				return -3; // Failure: Not allocated
+
+			// Unregister allocation in tracy
+			TracyFree(ptr);
 
 			// Remove from alloc map
 			registry.m_allocMap[offset] = (size_t)-1;
@@ -241,7 +249,7 @@ namespace MemoryInternal
 
 		std::vector<T> m_pageStorage;
 		std::vector<size_t> m_allocMap; // Offset to size mapping
-		size_t m_freeRegionsRoot;
+		size_t m_freeRegionsRoot = (size_t)-1;
 
 		bool m_initialized = false;
 		size_t m_maxCount = 0;
