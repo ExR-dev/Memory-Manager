@@ -3,7 +3,7 @@
 #include <vector>
 #include <array>
 #include <bitset>
-#include <math.h>
+#include <cmath>
 
 class BuddyAllocator
 {
@@ -22,12 +22,12 @@ private:
 	std::unique_ptr<std::array<char, 4096 * 1024>> m_memory;
 	size_t m_minimumSize = 32 * 1024;
 
-	size_t m_numRows = (size_t)(log2(4096 * 1024) - log2(m_minimumSize));
-	size_t m_numBlocks = (size_t)pow(2, m_numRows + 1) - 1;
+	size_t m_numRows = static_cast<size_t>(log2(4096 * 1024) - log2(static_cast<double>(m_minimumSize)));
+	size_t m_numBlocks = static_cast<size_t>(pow(2, static_cast<double>(m_numRows) + 1) - 1);
 
 	std::unique_ptr<std::vector<Block>> m_blocks;
 
-	Block* FindBlock(Block* block, size_t size, int parentIndex)
+	Block* FindBlock(Block* block, const size_t size, const int parentIndex)
 	{
 		// If the block we are checking is free, and if the data could fit in the block
 		if (block->isFree && block->size >= size)
@@ -39,8 +39,8 @@ private:
 				// and the data can fit in the half size
 				if (block->size / 2 >= m_minimumSize && block->size / 2 >= size)
 				{
-					block->left = &m_blocks.get()->at((2 * parentIndex) + 1);
-					block->right = &m_blocks.get()->at(2 * (parentIndex + 1));
+					block->left = &m_blocks->at((2 * parentIndex) + 1);
+					block->right = &m_blocks->at(2 * (parentIndex + 1));
 
 					block->left->size = block->size / 2;
 					block->right->size = block->size / 2;
@@ -58,20 +58,18 @@ private:
 				}
 
 			}
-			Block* left = FindBlock(block->left, size, (2 * parentIndex) + 1);
-			if (left != nullptr)
+
+			if (Block* left = FindBlock(block->left, size, (2 * parentIndex) + 1); left != nullptr)
 			{
 				return left;
 			}
 			return FindBlock(block->right, size, 2 * (parentIndex + 1));
 		}
-		else
-		{
-			return nullptr;
-		}
+
+		return nullptr;
 	}
 
-	Block* FindBlockByOffset(Block* block, size_t offset)
+	Block* FindBlockByOffset(Block* block, const size_t offset)
 	{
 		if (block->left == nullptr || block->right == nullptr)
 		{
@@ -92,37 +90,36 @@ public:
 	{
 		m_memory = std::make_unique<std::array<char, 4096 * 1024>>();
 		m_blocks = std::make_unique<std::vector<Block>>();
-		m_blocks.get()->resize(m_numBlocks);
+		m_blocks->resize(m_numBlocks);
 		//Do we need this resize? We need to keep the blocks at constant memory places, so yes?
 		// Change this to reserve.
 		//m_blocks.reserve((1024 * 1000) / m_minimumSize);
 		//m_blocks[0].size = 1024 * 1000;
 
-		m_blocks.get()->at(0).size = 4096 * 1024;
+		m_blocks->at(0).size = 4096 * 1024;
 		//m_blocks.push_back(baseBlock);
 	}
 
 	
-	void* Alloc(size_t size)
+	void* Alloc(const size_t size)
 	{
-		Block* allocated = FindBlock(&m_blocks.get()->at(0), size, 0);
+		const Block* allocated = FindBlock(&m_blocks->at(0), size, 0);
 		if (allocated == nullptr)
 		{
 			return nullptr;
 		}
 
-		return m_memory.get()->data() + allocated->offset;
+		return m_memory->data() + allocated->offset;
 	}
 
 	void Free(void* mem)
 	{
-		ptrdiff_t offset = (char*)mem - m_memory.get()->data();
-		Block* block = FindBlockByOffset(&m_blocks.get()->at(0), offset);
+		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
+		Block* block = FindBlockByOffset(&m_blocks->at(0), offset);
 
 		block->isFree = true;
-		Block* parent = block->parent;
-		
-		if (parent->left->isFree && parent->right->isFree)
+
+		if (Block* parent = block->parent; parent->left->isFree && parent->right->isFree)
 		{
 			parent->left = nullptr;
 			parent->right = nullptr;
@@ -132,11 +129,12 @@ public:
 
 	void PrintAllocatedIndices()
 	{
-		for (size_t i = 0; i < m_blocks.get()->size(); i++)
+		for (size_t i = 0; i < m_blocks->size(); i++)
 		{
-			if (!m_blocks.get()->at(i).isFree)
+			if (!m_blocks->at(i).isFree)
 				std::cout << i << '\n';
 		}
-		std::cout << std::endl;
+
+		std::cout << std::flush;
 	}
 };
