@@ -6,6 +6,7 @@
 #include "PageRegistry.hpp"
 
 #include "StackAllocator.hpp"
+#include "BuddyAllocator.hpp"
 
 #include <cstdio>
 #include <iostream>
@@ -63,6 +64,32 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
+
+    BuddyAllocator buddyAllocator;
+    void* foo = buddyAllocator.Alloc(75 * 1000);
+    void* bar = buddyAllocator.Alloc(36 * 1000);
+    void* baz = buddyAllocator.Alloc(36 * 1000);
+    buddyAllocator.Alloc(128 * 1000);
+    buddyAllocator.Alloc(200 * 1000);
+    buddyAllocator.Alloc(30 * 1000);
+    buddyAllocator.Alloc(100 * 1000);
+    buddyAllocator.Alloc(128 * 1000);
+
+    std::cout << "The first alloc was placed at " << foo << std::endl;
+    std::cout << "The second alloc was placed at " << bar << std::endl;
+    buddyAllocator.PrintAllocatedIndices();
+    buddyAllocator.Free(bar);
+    buddyAllocator.Free(baz);
+    buddyAllocator.PrintAllocatedIndices();
+
+    buddyAllocator.Alloc(128 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+    buddyAllocator.Alloc(36 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+
+    buddyAllocator.Alloc(500 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+    
     // Main loop
     bool done = false;
     while (!done)
