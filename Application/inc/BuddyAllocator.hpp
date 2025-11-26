@@ -2,75 +2,141 @@
 #include <memory>
 #include <vector>
 #include <array>
+#include <bitset>
+#include <math.h>
 
 class BuddyAllocator
 {
 private:
 	struct Block
 	{
-		Block* buddy = nullptr;
 		bool isFree = true;
 		size_t size = 0;
 		size_t offset = 0;
+
+		Block* left = nullptr;
+		Block* right = nullptr;
+		Block* parent = nullptr;
 	};
 
-	std::unique_ptr<std::array<char, 1024 * 1000>> m_memory;
-	std::vector<Block> m_blocks;
-	size_t m_minimumSize = 64 * 1000;
+	std::unique_ptr<std::array<char, 4096 * 1024>> m_memory;
+	size_t m_minimumSize = 32 * 1024;
+
+	size_t m_numRows = (size_t)(log2(4096 * 1024) - log2(m_minimumSize));
+	size_t m_numBlocks = (size_t)pow(2, m_numRows + 1) - 1;
+
+	std::unique_ptr<std::vector<Block>> m_blocks;
+
+	Block* FindBlock(Block* block, size_t size, int parentIndex)
+	{
+		// If the block we are checking is free, and if the data could fit in the block
+		if (block->isFree && block->size >= size)
+		{
+			// There are no child blocks
+			if (block->left == nullptr && block->right == nullptr)
+			{
+				// If the half size of the block is larger than the minimum,
+				// and the data can fit in the half size
+				if (block->size / 2 >= m_minimumSize && block->size / 2 >= size)
+				{
+					block->left = &m_blocks.get()->at((2 * parentIndex) + 1);
+					block->right = &m_blocks.get()->at(2 * (parentIndex + 1));
+
+					block->left->size = block->size / 2;
+					block->right->size = block->size / 2;
+
+					block->left->offset = block->offset;
+					block->right->offset = block->offset + block->left->size;
+
+					block->left->parent = block->right->parent = block;
+				}
+				// Either the half block would hit the minimum, or the data would not fit so we stop
+				else
+				{
+					block->isFree = false;
+					return block;
+				}
+
+			}
+			Block* left = FindBlock(block->left, size, (2 * parentIndex) + 1);
+			if (left != nullptr)
+			{
+				return left;
+			}
+			return FindBlock(block->right, size, 2 * (parentIndex + 1));
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	Block* FindBlockByOffset(Block* block, size_t offset)
+	{
+		if (block->left == nullptr || block->right == nullptr)
+		{
+			if (block->offset == offset)
+				return block;
+
+			return nullptr;
+		}
+
+		if (block->right->offset > offset)
+			return FindBlockByOffset(block->left, offset);
+
+		return FindBlockByOffset(block->right, offset);
+	}
 
 public:
 	BuddyAllocator()
 	{
-		m_memory = std::make_unique<std::array<char, 1024 * 1000>>();
+		m_memory = std::make_unique<std::array<char, 4096 * 1024>>();
+		m_blocks = std::make_unique<std::vector<Block>>();
+		m_blocks.get()->resize(m_numBlocks);
 		//Do we need this resize? We need to keep the blocks at constant memory places, so yes?
-		//m_blocks.resize((1024 * 1000) / m_minimumSize);
-		m_blocks[0].size = 1024 * 1000;
+		// Change this to reserve.
+		//m_blocks.reserve((1024 * 1000) / m_minimumSize);
+		//m_blocks[0].size = 1024 * 1000;
+
+		m_blocks.get()->at(0).size = 4096 * 1024;
+		//m_blocks.push_back(baseBlock);
 	}
 
+	
 	void* Alloc(size_t size)
 	{
-		// Find a free block
-		for (size_t i = 0; i < m_blocks.size(); i++)
+		Block* allocated = FindBlock(&m_blocks.get()->at(0), size, 0);
+		if (allocated == nullptr)
 		{
-			if (m_blocks[i].isFree && m_blocks[i].size >= size)
-			{
-				// Attempt to split the block
-				while (m_blocks[i].size / 2 >= size && m_blocks[i].size / 2 >= m_minimumSize)
-				{
-					size_t halfSize = m_blocks[i].size / 2;
-
-					Block buddyBlock;
-					buddyBlock.size = halfSize;
-					buddyBlock.offset = m_blocks[i].offset + halfSize;
-
-					m_blocks.push_back(buddyBlock);
-					m_blocks[i].size = halfSize;
-					m_blocks[i].buddy = &m_blocks.back();
-					m_blocks.back().buddy = &m_blocks[i];
-				}
-
-				m_blocks[i].isFree = false;
-				return m_memory.get()->data() + m_blocks[i].offset;
-			}
+			return nullptr;
 		}
 
-		// No suitable block was found
-		return nullptr;
+		return m_memory.get()->data() + allocated->offset;
 	}
 
 	void Free(void* mem)
 	{
-		// Find the memory block to be freed
-		Block block;
-		for (size_t i = 0; i < m_blocks.size(); i++)
+		ptrdiff_t offset = (char*)mem - m_memory.get()->data();
+		Block* block = FindBlockByOffset(&m_blocks.get()->at(0), offset);
+
+		block->isFree = true;
+		Block* parent = block->parent;
+		
+		if (parent->left->isFree && parent->right->isFree)
 		{
-			if (m_memory.get()->data() + m_blocks[i].offset == mem)
-			{
-				block = m_blocks[i];
-				break;
-			}
+			parent->left = nullptr;
+			parent->right = nullptr;
 		}
 
-		// Check if the buddy is free, and combine them if that is the case
+	}
+
+	void PrintAllocatedIndices()
+	{
+		for (size_t i = 0; i < m_blocks.get()->size(); i++)
+		{
+			if (!m_blocks.get()->at(i).isFree)
+				std::cout << i << '\n';
+		}
+		std::cout << std::endl;
 	}
 };
