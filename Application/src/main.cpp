@@ -1,6 +1,3 @@
-
-#define TRACY_ENABLE
-
 #include "SDL3/SDL.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_sdl3.h"
@@ -74,7 +71,6 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-
     BuddyAllocator buddyAllocator;
     void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
@@ -100,16 +96,18 @@ int main()
     buddyAllocator.Alloc(500 * 1000);
     buddyAllocator.PrintAllocatedIndices();
     
+    FrameMark;
+
     // Main loop
     bool done = false;
     while (!done)
     {
-        //ZoneNamedNC(mainLoopZone, "Main Loop", tracy::Color::Beige, true);
+        ZoneNamedNC(mainLoopZone, "Main Loop", tracy::Color::Beige, true);
 
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
-            //ZoneNamedNC(sdlPollZone, "SDL Poll Event", tracy::Color::VioletRed, true);
+            ZoneNamedNC(sdlPollZone, "SDL Poll Event", tracy::Color::VioletRed, true);
 
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
@@ -125,7 +123,7 @@ int main()
 
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
-            //ZoneNamedNC(imguiWindowZone, "ImGui Window", tracy::Color::Firebrick4, true);
+            ZoneNamedNC(imguiWindowZone, "ImGui Window", tracy::Color::Firebrick4, true);
 
             static float f = 0.0f;
             static int counter = 0;
@@ -164,7 +162,7 @@ int main()
 
         stackAllocator.Reset();
 
-        //FrameMark;
+        FrameMark;
     }
 
 
