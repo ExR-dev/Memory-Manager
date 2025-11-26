@@ -1,3 +1,5 @@
+#undef TRACY_ENABLE
+
 #include "../../../Application/inc/PageRegistry.hpp"
 #include <gtest/gtest.h>
 
