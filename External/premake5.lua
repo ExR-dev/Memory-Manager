@@ -35,32 +35,6 @@ project "GoogleTest"
             "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
         }
 
-project "GoogleBenchmark"
-
-    kind "StaticLib"
-    location(projectsPath)
-
-    targetdir(targetBuildPath .. "/External")
-    objdir(objBuildPath .. "/%{prj.name}")
-
-    libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/%{prj.name}\""
-
-    filter "system:windows"
-        kind "Utility"
-        prebuildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
-
-    filter "system:linux"
-        kind "Makefile"
-        buildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. " -B %{prj.objdir} -DGOOGLETEST_PATH=" .. rootPath .. "/External/GoogleTest/ -DCMAKE_INSTALL_PREFIX=%{prj.targetdir}",
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-        }
-
 
 project "SDL3"
     kind "StaticLib"
@@ -74,12 +48,11 @@ project "SDL3"
     filter "system:windows"
         kind "Utility"
 
-        filter "configurations:release"
-            prebuildcommands{
-                "{MKDIR} %{prj.objdir}",
-                "cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-                "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
-            }
+		prebuildcommands{
+			"{MKDIR} %{prj.objdir}",
+			"cmake -S " .. moduleDirectory .. " -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_LIBC=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
+			"cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+		}
 
         --[[filter "configurations:debug"
             prebuildcommands{
@@ -168,9 +141,7 @@ project "TracyServer"
         kind "Utility"
 
         prebuildcommands{
-            "{MKDIR} %{prj.objdir}",
-            "cmake -S " .. libDirectory .. "/profiler -B %{prj.objdir} -DCMAKE_INSTALL_PREFIX=%{prj.targetdir} -DCMAKE_MSVC_RUNTIME_LIBRARY=" .. rtLib,
-            "cmake --build %{prj.objdir} --config %{cfg.buildcfg} --target install",
+		
         }
 
     filter "system:linux"

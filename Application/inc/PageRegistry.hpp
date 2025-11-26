@@ -9,22 +9,62 @@
 
 namespace MemoryInternal
 {
-	constexpr size_t DEFAULT_PAGE_SIZE = (1 << 12);
+	constexpr size_t DEFAULT_PAGE_SIZE = (1 << 13);
 
 	struct AllocLink
 	{
 		size_t offset;
 		size_t size;
-		std::unique_ptr<AllocLink> next;
+		size_t next;
 
+		AllocLink() : offset(0), size(0), next((size_t)-1) { }
 		AllocLink(size_t off, size_t sz)
-			: offset(off), size(sz), next(nullptr) { }
+			: offset(off), size(sz), next((size_t)-1) { }
 	};
 
 	template <typename T>
 	class PageRegistry
 	{
 	public:
+		static int Initialize(size_t maxCount)
+		{
+			PageRegistry<T> &registry = Get();
+
+			if (registry.m_initialized)
+				return -1; // Failure: Already initialized
+
+			if (maxCount <= 0)
+				return -2; // Failure: Invalid max count
+
+			if ((maxCount & (maxCount - 1)) != 0)
+				return -3; // Failure: Max count must be a power of two
+
+			registry.m_pageStorage.resize(maxCount);
+			registry.m_allocMap.resize(maxCount);
+			registry.m_freeRegionLinkStorage.resize(maxCount);
+
+			registry.m_maxCount = maxCount;
+			registry.m_initialized = true;
+			registry.m_freeRegionsRoot = 0;
+
+			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), (size_t)-1);
+			std::fill(registry.m_freeRegionLinkStorage.begin(), registry.m_freeRegionLinkStorage.end(), AllocLink(0, 0));
+
+			registry.m_freeRegionLinkStorage[0] = AllocLink(0, maxCount);
+
+			return 0; // Success
+		}
+		static void Reset()
+		{
+			PageRegistry<T> &registry = Get();
+			registry.m_pageStorage.clear();
+			registry.m_freeRegionLinkStorage.clear();
+			registry.m_allocMap.clear();
+			registry.m_freeRegionsRoot = 0;
+			registry.m_initialized = false;
+			registry.m_maxCount = 0;
+		}
+
 		[[nodiscard]] static T *Alloc(size_t count)
 		{
 			PageRegistry<T> &registry = Get();
@@ -36,31 +76,35 @@ namespace MemoryInternal
 				return nullptr; // Failure: Invalid count
 
 			// Find first free region of sufficient size
-			AllocLink *prev = nullptr;
-			AllocLink *current = registry.m_freeRegions.get();
+			size_t prev = (size_t)-1;
+			size_t current = registry.m_freeRegionsRoot;
 
-			while (current)
+			auto &freeRegions = registry.m_freeRegionLinkStorage;
+
+			while (current != (size_t)-1)
 			{
-				if (current->size >= count)
+				if (freeRegions[current].size >= count)
 				{
-					size_t allocOffset = current->offset;
+					size_t allocOffset = freeRegions[current].offset;
 
 					// Update free region
-					current->offset += count;
-					current->size -= count;
+					freeRegions[current].offset += count;
+					freeRegions[current].size -= count;
 
-					if (current->size == 0)
+					// Remove the link if no space left
+					if (freeRegions[current].size == 0)
 					{
-						// Remove the link if no space left
-						if (prev)
+						if (prev != (size_t)-1)
 						{
-							prev->next = std::move(current->next);
+							freeRegions[prev].next = freeRegions[current].next;
 						}
 						else
 						{
 							// Update head of free regions
-							registry.m_freeRegions = std::move(current->next);
+							registry.m_freeRegionsRoot = freeRegions[current].next;
 						}
+
+						freeRegions[current] = AllocLink(0, 0); // Mark as unused
 					}
 
 					// Add to alloc map
@@ -70,12 +114,11 @@ namespace MemoryInternal
 				}
 
 				prev = current;
-				current = current->next.get();
+				current = freeRegions[current].next;
 			}
 
 			return nullptr; // Failure: No sufficient free region
 		}
-
 		static int Free(T *ptr)
 		{
 			PageRegistry<T> &registry = Get();
@@ -94,62 +137,69 @@ namespace MemoryInternal
 			// Remove from alloc map
 			registry.m_allocMap[offset] = (size_t)-1;
 
+			auto &freeRegions = registry.m_freeRegionLinkStorage;
+
 			// Handle case where pool is full
-			if (!registry.m_freeRegions)
+			if (registry.m_freeRegionsRoot == (size_t)-1)
 			{
 				// Add this allocation as the only free region
-				registry.m_freeRegions = std::make_unique<AllocLink>(offset, count);
+				size_t newLinkIndex = registry.FindFreeRegion();
+				registry.m_freeRegionsRoot = newLinkIndex;
+				freeRegions[newLinkIndex] = AllocLink(offset, count);
 			}
 			else
 			{
 				// Find correct position to insert freed region
 				// such that the insertion point falls after 'left' and before 'right'
-				std::unique_ptr<AllocLink> *left = nullptr;
-				std::unique_ptr<AllocLink> *right = &registry.m_freeRegions;
+				size_t left = (size_t)-1;
+				size_t right = registry.m_freeRegionsRoot;
 
-				while (*right)
+				while (right != (size_t)-1)
 				{
-					if (offset < right->get()->offset)
+					if (offset < freeRegions[right].offset)
 						break;
 
 					left = right;
-					right = &right->get()->next;
+					right = freeRegions[right].next;
 				}
 
 				// If regions are contiguous, merge them instead of creating a new link
-				if (left && *left && (left->get()->offset + left->get()->size == offset))
+				if (left != (size_t)-1 && (freeRegions[left].offset + freeRegions[left].size == offset))
 				{
-					left->get()->size += count;
+					freeRegions[left].size += count;
 
-					if (right && (offset + count == right->get()->offset))
+					if (right && (offset + count == freeRegions[right].offset))
 					{
 						// Merge with next region as well
-						left->get()->size += right->get()->size;
-						left->get()->next = std::move(right->get()->next);
+						freeRegions[left].size += freeRegions[right].size;
+						freeRegions[left].next = freeRegions[right].next;
+
+						freeRegions[right] = AllocLink(0, 0); // Mark as unused
 					}
 				}
-				else if (*right && (offset + count == right->get()->offset))
+				else if (right != (size_t)-1 && (offset + count == freeRegions[right].offset))
 				{
 					// Merge with next region
-					right->get()->offset = offset;
-					right->get()->size += count;
+					freeRegions[right].offset = offset;
+					freeRegions[right].size += count;
 				}
 				else // Region is not contiguous with either side, insert new link
 				{
 					// Insert new free region
-					auto newLink = std::make_unique<AllocLink>(offset, count);
+					size_t newLinkIndex = registry.FindFreeRegion();
+					freeRegions[newLinkIndex] = AllocLink(offset, count);
 
-					if (*right && !left)
+					if (right != (size_t)-1 && left == (size_t)-1)
 					{
 						// Inserting at head
-						newLink->next = std::move(registry.m_freeRegions);
-						registry.m_freeRegions = std::move(newLink);
+						freeRegions[newLinkIndex].next = registry.m_freeRegionsRoot;
+						registry.m_freeRegionsRoot = newLinkIndex;
 					}
-					else if (left && *left)
+					else if (left != (size_t)-1)
 					{
 						// Inserting in middle or end
-						newLink->next = std::move(left->get()->next);
-						left->get()->next = std::move(newLink);
+						freeRegions[newLinkIndex].next = freeRegions[left].next;
+						freeRegions[left].next = newLinkIndex;
 					}
 				}
 			}
@@ -157,63 +207,6 @@ namespace MemoryInternal
 			return 0; // Success
 		}
 
-		static void DBG_Reset()
-		{
-			PageRegistry<T> &registry = Get();
-			registry.m_pageStorage.clear();
-			registry.m_freeRegions.reset();
-			registry.m_allocMap.clear();
-			registry.m_initialized = false;
-			registry.m_maxCount = 0;
-		}
-		static void DBG_PrintPage(int lineWidth)
-		{
-			PageRegistry<T> &registry = Get();
-			if (!registry.m_initialized)
-			{
-				printf("PageRegistry not initialized.\n");
-				return;
-			}
-
-			char pageStr[DEFAULT_PAGE_SIZE + 1]{};
-			memset(pageStr, '.', DEFAULT_PAGE_SIZE);
-			pageStr[DEFAULT_PAGE_SIZE] = '\0';
-
-			char allocID = 'a';
-			for (int i = 0; i < registry.m_allocMap.size(); ++i)
-			{
-				const auto &alloc = registry.m_allocMap[i];
-
-				if (alloc == (size_t)-1 || alloc == (size_t)0)
-					continue; // Not allocated
-
-				size_t offset = alloc.first;
-				size_t size = alloc.second;
-
-				for (size_t pos = offset; pos < offset + size; ++pos)
-				{
-					if (pageStr[pos] != '.')
-						pageStr[pos] = '?'; // Overlap indication
-					else if (pos < DEFAULT_PAGE_SIZE)
-						pageStr[pos] = allocID;
-				}
-
-				allocID++;
-				i += size - 1; // Skip to end of this allocation
-			}
-
-			// Print the page representation
-			for (size_t i = 0; i < DEFAULT_PAGE_SIZE; i += lineWidth)
-			{
-				printf("%04zx: ", i);
-				for (size_t j = 0; j < lineWidth && (i + j) < DEFAULT_PAGE_SIZE; ++j)
-				{
-					putchar(pageStr[i + j]);
-				}
-				putchar('\n');
-			}
-			putchar('\n');
-		}
 		const static std::vector<T> &DBG_GetPageStorage()
 		{
 			if (!Get().m_initialized)
@@ -221,12 +214,19 @@ namespace MemoryInternal
 
 			return Get().m_pageStorage;
 		}
-		const static std::unique_ptr<AllocLink> &DBG_GetFreeRegions()
+		const static std::vector<AllocLink> &DBG_GetFreeRegions()
 		{
 			if (!Get().m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
 
-			return Get().m_freeRegions;
+			return Get().m_freeRegionLinkStorage;
+		}
+		const static size_t DBG_GetFreeRegionRoot()
+		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
+			return Get().m_freeRegionsRoot;
 		}
 		const static std::vector<size_t> &DBG_GetAllocMap()
 		{
@@ -237,9 +237,11 @@ namespace MemoryInternal
 		}
 
 	private:
+		std::vector<AllocLink> m_freeRegionLinkStorage;
+
 		std::vector<T> m_pageStorage;
-		std::unique_ptr<AllocLink> m_freeRegions;
 		std::vector<size_t> m_allocMap; // Offset to size mapping
+		size_t m_freeRegionsRoot;
 
 		bool m_initialized = false;
 		size_t m_maxCount = 0;
@@ -254,28 +256,17 @@ namespace MemoryInternal
 			return instance;
 		}
 
-		static int Initialize(size_t maxCount)
+		[[nodiscard]] size_t FindFreeRegion()
 		{
-			PageRegistry<T> &registry = Get();
+			// Look through free region links to find first with size of 0, meaning unused
+			for (size_t i = 0; i < m_freeRegionLinkStorage.size(); ++i)
+			{
+				if (m_freeRegionLinkStorage[i].size == 0)
+					return i;
+			}
 
-			if (registry.m_initialized)
-				return -1; // Failure: Already initialized
-
-			if (maxCount <= 0)
-				return -2; // Failure: Invalid max count
-
-			if ((maxCount & (maxCount - 1)) != 0)
-				return -3; // Failure: Max count must be a power of two
-
-			registry.m_pageStorage.resize(maxCount);
-			registry.m_allocMap.resize(maxCount);
-			registry.m_maxCount = maxCount;
-			registry.m_freeRegions = std::make_unique<AllocLink>(0, maxCount);
-			registry.m_initialized = true;
-
-			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), (size_t)-1);
-
-			return 0; // Success
+			// No free link found
+			return (size_t)-1;
 		}
 	};
 

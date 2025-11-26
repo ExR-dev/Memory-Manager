@@ -1,15 +1,19 @@
-
 #include "SDL3/SDL.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_sdl3.h"
 #include "ImGui/imgui_impl_sdlrenderer3.h"
-#include "PageRegistry.hpp"
+#include "tracy/tracy/Tracy.hpp"
 
+#include "PageRegistry.hpp"
 #include "StackAllocator.hpp"
 #include "BuddyAllocator.hpp"
+#include "MemPerfTests.hpp"
 
 #include <cstdio>
 #include <iostream>
+
+#define TRACY_ENABLE
+#define TracyNoop
 
 struct TestStruct {
     int a = 1;
@@ -127,6 +131,11 @@ int main()
                 counter++;
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
+
+            if (ImGui::Button("Run Pool Performance Tests"))
+            {
+                PerfTests::RunPoolPerfTests();
+			}
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
