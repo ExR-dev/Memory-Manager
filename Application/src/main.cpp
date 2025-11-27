@@ -5,7 +5,7 @@
 #include "ImGui/imgui_impl_sdl3.h"
 #include "ImGui/imgui_impl_sdlrenderer3.h"
 
-#include "PageRegistry.hpp"
+#include "PoolAllocator.hpp"
 #include "StackAllocator.hpp"
 #include "BuddyAllocator.hpp"
 #include "MemPerfTests.hpp"

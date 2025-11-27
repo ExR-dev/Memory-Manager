@@ -28,6 +28,8 @@ public:
 
 	void* At(size_t idx)
 	{
+		ZoneScopedXC(tracy::Color::DarkGreen);
+
 		if (idx >= m_top)
 			return nullptr;
 
@@ -36,6 +38,8 @@ public:
 
 	size_t Push(void* data, size_t size)
 	{
+		ZoneScopedC(tracy::Color::CornflowerBlue);
+
 		if (m_top + size > STACK_SIZE)
 			return (size_t)-1;
 
@@ -58,6 +62,8 @@ public:
 
 	void Reset()
 	{
+		ZoneScopedC(tracy::Color::Chartreuse2);
+
 #ifdef TRACY_ENABLE
 		while (!m_dbgTrackedAllocs.empty())
 		{

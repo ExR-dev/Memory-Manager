@@ -1,4 +1,4 @@
-// PageRegistry.h allocates, stores & manages all type-specific memory pages.
+// PoolAllocator.h allocates, stores & manages all type-specific memory pages.
 
 #pragma once
 
@@ -34,12 +34,12 @@ namespace MemoryInternal
 	};
 
 	template <typename T>
-	class PageRegistry
+	class PoolAllocator
 	{
 	public:
 		static int Initialize(IndexType maxCount)
 		{
-			PageRegistry<T> &registry = Get();
+			PoolAllocator<T> &registry = Get();
 
 			if (registry.m_initialized)
 				return -1; // Failure: Already initialized
@@ -77,7 +77,7 @@ namespace MemoryInternal
 		{
 			ZoneScopedXC(tracy::Color::Seashell2);
 
-			PageRegistry<T> &registry = Get();
+			PoolAllocator<T> &registry = Get();
 			registry.m_pageStorage = std::vector<T>();
 			registry.m_freeRegionLinkStorage = std::vector<AllocLink>();
 #ifdef FREE_REGION_CACHE
@@ -93,7 +93,7 @@ namespace MemoryInternal
 		{
 			ZoneScopedXC(tracy::Color::Goldenrod2);
 
-			PageRegistry<T> &registry = Get();
+			PoolAllocator<T> &registry = Get();
 
 			if (!registry.m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Default max count
@@ -159,7 +159,7 @@ namespace MemoryInternal
 		{
 			ZoneScopedXC(tracy::Color::LavenderBlush1);
 
-			PageRegistry<T> &registry = Get();
+			PoolAllocator<T> &registry = Get();
 			if (!registry.m_initialized || ptr == nullptr) [[unlikely]]
 				return -1;
 
@@ -251,7 +251,7 @@ namespace MemoryInternal
 
 					freeRegions[left].size += count;
 
-					if (right && (offset + count == freeRegions[right].offset))
+					if (right != NULL_INDEX && (offset + count == freeRegions[right].offset))
 					{
 						ZoneNamedXNC(mergeRightZone, "Merge Right", tracy::Color::Brown2, true);
 
@@ -356,12 +356,12 @@ namespace MemoryInternal
 		IndexType m_freeRegionsRoot = NULL_INDEX;
 
 
-		PageRegistry() = default;
-		~PageRegistry() = default;
+		PoolAllocator() = default;
+		~PoolAllocator() = default;
 
-		[[nodiscard]] static PageRegistry<T> &Get()
+		[[nodiscard]] static PoolAllocator<T> &Get()
 		{
-			static PageRegistry<T> instance;
+			static PoolAllocator<T> instance;
 			return instance;
 		}
 
@@ -479,12 +479,12 @@ namespace MemoryInternal
 	template <typename T>
 	[[nodiscard]] inline T *Alloc(IndexType count)
 	{
-		return PageRegistry<T>::Alloc(count);
+		return PoolAllocator<T>::Alloc(count);
 	}
 
 	template <typename T>
 	inline int Free(T *ptr)
 	{
-		return PageRegistry<T>::Free(ptr);
+		return PoolAllocator<T>::Free(ptr);
 	}
 }

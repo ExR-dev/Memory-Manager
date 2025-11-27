@@ -32,6 +32,8 @@ private:
 
 	Block* FindBlock(Block* block, const size_t size, const int parentIndex)
 	{
+		ZoneScopedXC(tracy::Color::Fuchsia);
+
 		// If the block we are checking is free, and if the data could fit in the block
 		if (block->isFree && block->size >= size)
 		{
@@ -74,6 +76,8 @@ private:
 
 	Block* FindBlockByOffset(Block* block, const size_t offset)
 	{
+		ZoneScopedXC(tracy::Color::LightSalmon);
+
 		if (block->left == nullptr || block->right == nullptr)
 		{
 			if (block->offset == offset)
@@ -106,6 +110,8 @@ public:
 	
 	void* Alloc(const size_t size)
 	{
+		ZoneScopedC(tracy::Color::Red);
+
 		const Block* allocated = FindBlock(&m_blocks->at(0), size, 0);
 		if (allocated == nullptr)
 		{
@@ -119,6 +125,8 @@ public:
 
 	void Free(void* mem)
 	{
+		ZoneScopedC(tracy::Color::Green);
+
 		TracyFreeN(mem, "Buddy");
 
 		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
@@ -136,6 +144,8 @@ public:
 
 	void PrintAllocatedIndices()
 	{
+		ZoneScopedC(tracy::Color::RoyalBlue1);
+
 		for (size_t i = 0; i < m_blocks->size(); i++)
 		{
 			if (!m_blocks->at(i).isFree)

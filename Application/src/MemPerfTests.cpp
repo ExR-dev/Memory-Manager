@@ -1,7 +1,7 @@
 #include "TracyWrapper.hpp"
 
 #include "MemPerfTests.hpp"
-#include "PageRegistry.hpp"
+#include "PoolAllocator.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -235,8 +235,8 @@ static TestResult StressTest(TestParams &params)
 	allocTimes.reserve(params.iterations);
 	newTimes.reserve(params.iterations);
 
-	MemoryInternal::PageRegistry<T>::Reset();
-	MemoryInternal::PageRegistry<T>::Initialize(static_cast<size_t>(params.maxConcurrent) * params.maxSize);
+	MemoryInternal::PoolAllocator<T>::Reset();
+	MemoryInternal::PoolAllocator<T>::Initialize(static_cast<size_t>(params.maxConcurrent) * params.maxSize);
 
 	int seed = static_cast<int>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
@@ -272,7 +272,7 @@ static TestResult StressTest(TestParams &params)
 	result.allocAvgTimeMs /= static_cast<float>(params.iterations);
 	result.newAvgTimeMs /= static_cast<float>(params.iterations);
 
-	MemoryInternal::PageRegistry<T>::Reset();
+	MemoryInternal::PoolAllocator<T>::Reset();
 
 	return result;
 }
@@ -284,9 +284,9 @@ void PerfTests::RunPoolPerfTests()
 
 	std::vector<TestParams> tests = {
 		// TypeName,			Iterations, AllocCount, MaxConcurrent,	MaxAllocSize
-		{ "TestStructSmall",	16,			20000,		1 << 3,			1 << 3	},
-		{ "TestStructMed",		16,			20000,		1 << 3,			1 << 3	},
-		{ "TestStructLarge",	16,			20000,		1 << 3,			1 << 3	},
+		{ "TestStructSmall",	16,			5000,		1 << 3,			1 << 3	},
+		{ "TestStructMed",		16,			5000,		1 << 3,			1 << 3	},
+		{ "TestStructLarge",	16,			5000,		1 << 3,			1 << 3	},
 
 		{ "TestStructSmall",	16,			2000,		1 << 5,			1 << 5	},
 		{ "TestStructMed",		16,			2000,		1 << 5,			1 << 5	},
@@ -296,139 +296,54 @@ void PerfTests::RunPoolPerfTests()
 		{ "TestStructMed",		16,			2000,		1 << 5,			1 << 9	},
 		{ "TestStructLarge",	16,			2000,		1 << 5,			1 << 9	},
 
-		{ "TestStructSmall",	16,			1000,		1 << 4,			1 << 10 },
-		{ "TestStructMed",		16,			1000,		1 << 4,			1 << 10 },
-		{ "TestStructLarge",	16,			1000,		1 << 4,			1 << 10 },
+		{ "TestStructSmall",	16,			2000,		1 << 4,			1 << 10 },
+		{ "TestStructMed",		16,			2000,		1 << 4,			1 << 10 },
+		{ "TestStructLarge",	16,			2000,		1 << 4,			1 << 10 },
+
+		{ "TestStructSmall",	16,			2000,		1 << 3,			1 << 11	},
+		{ "TestStructMed",		16,			2000,		1 << 3,			1 << 11	},
+		{ "TestStructLarge",	16,			2000,		1 << 3,			1 << 11	},
 																			   
-		{ "TestStructSmall",	16,			5000,		1 << 8,			1 << 4	},
-		{ "TestStructMed",		16,			5000,		1 << 8,			1 << 4	},
-		{ "TestStructLarge",	16,			5000,		1 << 8,			1 << 4	},
-																			   
-		{ "char",				16,			5000,		1 << 9,			1 << 6	},
-		{ "int",				16,			5000,		1 << 9,			1 << 6	},
-		{ "size_t",				16,			5000,		1 << 9,			1 << 6	},
+		{ "TestStructSmall",	16,			2000,		1 << 8,			1 << 4	},
+		{ "TestStructMed",		16,			2000,		1 << 8,			1 << 4	},
+		{ "TestStructLarge",	16,			2000,		1 << 8,			1 << 4	},
+
+		{ "TestStructSmall",	16,			2000,		1 << 11,		1 << 3  },
+		{ "TestStructMed",		16,			2000,		1 << 11,		1 << 3  },
+		{ "TestStructLarge",	16,			2000,		1 << 11,		1 << 3  },
 																			   
 		{ "char",				16,			1000,		1 << 5,			1 << 11	},
 		{ "int",				16,			1000,		1 << 5,			1 << 11	},
 		{ "size_t",				16,			1000,		1 << 5,			1 << 11	},
+																			   
+		{ "char",				16,			3000,		1 << 9,			1 << 6	},
+		{ "int",				16,			3000,		1 << 9,			1 << 6	},
+		{ "size_t",				16,			3000,		1 << 9,			1 << 6	},
 	};
 
 	std::vector<TestResult> results;
 	results.reserve(tests.size());
 	
-	int i = 0;
+	for (int i = 0; i < tests.size(); ++i)
 	{
 		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
 		ZoneValue(i);
-		results.push_back(StressTest<TestStructSmall>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructMed>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructLarge>(tests[i++]));
-	}
 
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructSmall>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructMed>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructLarge>(tests[i++]));
-	}
+		TestParams &test = tests[i];
 
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructSmall>(tests[i++]));
+		if (test.typeName == "TestStructSmall")
+			results.push_back(StressTest<TestStructSmall>(test));
+		else if (test.typeName == "TestStructMed")
+			results.push_back(StressTest<TestStructMed>(test));
+		else if (test.typeName == "TestStructLarge")
+			results.push_back(StressTest<TestStructLarge>(test));
+		else if (test.typeName == "char")
+			results.push_back(StressTest<char>(test));
+		else if (test.typeName == "int")
+			results.push_back(StressTest<int>(test));
+		else if (test.typeName == "size_t")
+			results.push_back(StressTest<size_t>(test));
 	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructMed>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructLarge>(tests[i++]));
-	}
-
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructSmall>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructMed>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructLarge>(tests[i++]));
-	}
-
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructSmall>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructMed>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<TestStructLarge>(tests[i++]));
-	}
-
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<char>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<int>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<size_t>(tests[i++]));
-	}
-
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<char>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<int>(tests[i++]));
-	}
-	{
-		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
-		ZoneValue(i);
-		results.push_back(StressTest<size_t>(tests[i++]));
-	}
-
 
 	std::cout << "\nPool Allocator Performance Tests\n";
 	std::cout << "Time measurements (ms)\n";
