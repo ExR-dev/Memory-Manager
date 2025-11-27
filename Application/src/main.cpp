@@ -1,10 +1,9 @@
-//#undef TRACY_ENABLE
+#include "TracyWrapper.hpp"
 
 #include "SDL3/SDL.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_sdl3.h"
 #include "ImGui/imgui_impl_sdlrenderer3.h"
-#include "TracyClient/public/tracy/Tracy.hpp"
 
 #include "PageRegistry.hpp"
 #include "StackAllocator.hpp"
@@ -27,7 +26,7 @@ int main()
     SDL_Delay(500);
 #endif
 
-    ZoneScopedC(tracy::Color::AliceBlue);
+    ZoneScopedC(tracy::Color::Coral3);
 
     StackAllocator stackAllocator;
     if (!SDL_Init(SDL_INIT_VIDEO))
@@ -105,7 +104,7 @@ int main()
     bool done = false;
     while (!done)
     {
-        ZoneNamedNC(mainLoopZone, "Main Loop", tracy::Color::Beige, true);
+        ZoneNamedNC(mainLoopZone, "Main Loop", tracy::Color::Honeydew3, true);
 
         SDL_Event event;
         while (SDL_PollEvent(&event))

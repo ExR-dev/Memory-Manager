@@ -20,13 +20,13 @@ workspace "Memory-Manager"
 
     filter "configurations:debug"
         runtime "Debug"
-        defines { "DEBUG", "TRACY_ENABLE" }
+        defines { "DEBUG", "TRACY_ENABLE", "TRACY_DETAILED" }
         symbols "On"
         optimize "Off"
 
     filter "configurations:release"
         runtime "Release"
-        defines { "NDEBUG", "TRACY_ENABLE" }
+        defines { "NDEBUG", "TRACY_ENABLE", "TRACY_DETAILED" }
         optimize "On"
 
     rootPath = path.getdirectory(_SCRIPT)

@@ -208,7 +208,7 @@ TEST(PoolTest, AllocFreeEdgeCases)
 	ASSERT_EQ(allocZero, nullptr);
 
 	// Allocating more than max size
-	int *allocTooLarge = Alloc<int>(MemoryInternal::PageRegistry<int>::DBG_GetPageStorage().size() + 1);
+	int *allocTooLarge = Alloc<int>((MemoryInternal::IndexType)MemoryInternal::PageRegistry<int>::DBG_GetPageStorage().size() + 1);
 	ASSERT_EQ(allocTooLarge, nullptr);
 
 	ASSERT_EQ(Free<int>(allocInt), 0);
