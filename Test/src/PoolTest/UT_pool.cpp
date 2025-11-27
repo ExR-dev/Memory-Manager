@@ -1,6 +1,6 @@
 #undef TRACY_ENABLE
 
-#include "../../../Application/inc/PageRegistry.hpp"
+#include "../../../Application/inc/PoolAllocator.hpp"
 #include <gtest/gtest.h>
 
 #pragma warning(disable: 6262) // Disable stack size warning
@@ -87,7 +87,7 @@ TEST(PoolTest, AllocFree)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
+	PoolAllocator<int>::Reset();
 
 	int *allocInt = Alloc<int>(1);
 	*allocInt = 69;
@@ -103,7 +103,7 @@ TEST(PoolTest, DuplicateAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
+	PoolAllocator<int>::Reset();
 
 	int *allocArray[3]{};
 	int allocSizes[3] = { 5, 10, 18 };
@@ -131,7 +131,7 @@ TEST(PoolTest, UnorderedAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
+	PoolAllocator<int>::Reset();
 
 	int *allocArray[3]{ nullptr, nullptr, nullptr };
 	int allocSizes[3]{ 5, 10, 18 };
@@ -160,7 +160,7 @@ TEST(PoolTest, ReuseFreedSpace)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
+	PoolAllocator<int>::Reset();
 
 	int *alloc1 = Alloc<int>(10);
 	int *alloc2 = Alloc<int>(20);
@@ -185,7 +185,7 @@ TEST(PoolTest, AllocFreeEdgeCases)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
+	PoolAllocator<int>::Reset();
 
 	int *allocInt = Alloc<int>(1);
 	ASSERT_TRUE(allocInt != nullptr);
@@ -204,7 +204,7 @@ TEST(PoolTest, AllocFreeEdgeCases)
 	ASSERT_EQ(allocZero, nullptr);
 
 	// Allocating more than max size
-	int *allocTooLarge = Alloc<int>((MemoryInternal::IndexType)MemoryInternal::PageRegistry<int>::DBG_GetPageStorage().size() + 1);
+	int *allocTooLarge = Alloc<int>((MemoryInternal::IndexType)MemoryInternal::PoolAllocator<int>::DBG_GetPageStorage().size() + 1);
 	ASSERT_EQ(allocTooLarge, nullptr);
 
 	ASSERT_EQ(Free<int>(allocInt), 0);
@@ -217,9 +217,9 @@ TEST(PoolTest, AllocFreeMultipleTypes)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<int>::Reset();
-	PageRegistry<double>::Reset();
-	PageRegistry<char>::Reset();
+	PoolAllocator<int>::Reset();
+	PoolAllocator<double>::Reset();
+	PoolAllocator<char>::Reset();
 
 	int *allocInt = Alloc<int>(10);
 	double *allocDouble = Alloc<double>(5);
@@ -252,7 +252,7 @@ TEST(PoolTest, StructAlloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<TestStruct>::Reset();
+	PoolAllocator<TestStruct>::Reset();
 
 	TestStruct *allocStruct = Alloc<TestStruct>(10);
 
@@ -284,8 +284,8 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 {
 	using namespace MemoryInternal;
 
-	PageRegistry<float>::Reset();
-	PageRegistry<float>::Initialize(1ull << 16);
+	PoolAllocator<float>::Reset();
+	PoolAllocator<float>::Initialize(1ull << 16);
 
 	float *allocs[allocCount]{ nullptr };
 	std::vector<int> currAllocs;
