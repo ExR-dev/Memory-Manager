@@ -1,4 +1,7 @@
 #pragma once
+
+#include "TracyWrapper.hpp"
+
 #include <memory>
 #include <vector>
 #include <array>
@@ -109,11 +112,15 @@ public:
 			return nullptr;
 		}
 
+		TracyAllocN(m_memory->data() + allocated->offset, size, "Buddy");
+
 		return m_memory->data() + allocated->offset;
 	}
 
 	void Free(void* mem)
 	{
+		TracyFreeN(mem, "Buddy");
+
 		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
 		Block* block = FindBlockByOffset(&m_blocks->at(0), offset);
 

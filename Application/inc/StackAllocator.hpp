@@ -1,7 +1,11 @@
 #pragma once
+
+#include "TracyWrapper.hpp"
+
 #include <memory>
 #include <array>
 #include <iostream>
+#include <stack>
 
 constexpr size_t STACK_SIZE = 1 << 14;
 typedef std::unique_ptr<std::array<char, STACK_SIZE>> StorageType;
@@ -11,6 +15,9 @@ class StackAllocator
 private:
 	StorageType m_stack;
 	size_t m_top = 0;
+#ifdef TRACY_ENABLE
+	std::stack<void*> m_dbgTrackedAllocs;
+#endif
 
 public:
 	StackAllocator()
@@ -35,6 +42,11 @@ public:
 		size_t start = m_top;
 		char* begin = m_stack.get()->data();
 
+#ifdef TRACY_ENABLE
+		TracyAllocN(begin + m_top, size, "Stack");
+		m_dbgTrackedAllocs.push(begin + m_top);
+#endif
+
 		for (size_t i = 0; i < size; i++)
 		{
 			begin[m_top] = ((char*)data)[i];
@@ -46,6 +58,13 @@ public:
 
 	void Reset()
 	{
+#ifdef TRACY_ENABLE
+		while (!m_dbgTrackedAllocs.empty())
+		{
+			TracyFreeN(m_dbgTrackedAllocs.top(), "Stack");
+			m_dbgTrackedAllocs.pop();
+		}
+#endif
 		m_top = 0;
 	}
 
