@@ -344,17 +344,16 @@ namespace MemoryInternal
 		}
 
 	private:
-		std::vector<AllocLink> m_freeRegionLinkStorage;
-
 		std::vector<T> m_pageStorage;
 		std::vector<IndexType> m_allocMap; // Offset to size mapping
-		IndexType m_freeRegionsRoot = NULL_INDEX;
+		std::vector<AllocLink> m_freeRegionLinkStorage;
 #ifdef FREE_REGION_CACHE
 		std::vector<IndexType> m_freeRegionsCache;
 #endif
 
 		bool m_initialized = false;
 		IndexType m_maxCount = 0;
+		IndexType m_freeRegionsRoot = NULL_INDEX;
 
 
 		PageRegistry() = default;
