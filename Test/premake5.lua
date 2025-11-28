@@ -9,9 +9,6 @@ project "Test"
     includedirs{"../Library/include", targetBuildPath .. "/External/include"}
 
     libdirs{targetBuildPath .. "/External/lib"}
-	
-	removedefines "TRACY_ENABLE"
-	removedefines "TRACY_DETAILED"
 
     dependson {"GoogleTest", "Library", "TracyClient"}
     links{"Library", "gtest"}

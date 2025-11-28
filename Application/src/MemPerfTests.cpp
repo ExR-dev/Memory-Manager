@@ -8,26 +8,6 @@
 #include <format>
 
 
-struct TestParams
-{
-	std::string typeName;
-	int iterations;
-	int allocCount;
-	int maxConcurrent;
-	int maxSize;
-};
-
-struct TestResult
-{
-	float allocAvgTimeMs;
-	float allocMinTimeMs;
-	float allocMaxTimeMs;
-
-	float newAvgTimeMs;
-	float newMinTimeMs;
-	float newMaxTimeMs;
-};
-
 struct TestStructSmall
 {
 	int a[2];
@@ -50,8 +30,28 @@ struct TestStructLarge
 };
 
 
+struct TestResult
+{
+	float allocAvgTimeMs;
+	float allocMinTimeMs;
+	float allocMaxTimeMs;
+
+	float newAvgTimeMs;
+	float newMinTimeMs;
+	float newMaxTimeMs;
+};
+
+struct TestPoolParams
+{
+	std::string typeName;
+	int iterations;
+	int allocCount;
+	int maxConcurrent;
+	int maxSize;
+};
+
 template<typename T>
-static float StressTestAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
+static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
 {
 	ZoneScopedC(tracy::Color::Yellow3);
 
@@ -138,7 +138,7 @@ static float StressTestAlloc(int allocCount, int maxConcurrentAllocs, int maxAll
 }
 
 template<typename T>
-static float StressTestNew(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
+static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
 {
 	ZoneScopedC(tracy::Color::Blue3);
 
@@ -227,7 +227,7 @@ static float StressTestNew(int allocCount, int maxConcurrentAllocs, int maxAlloc
 }
 
 template<typename T>
-static TestResult StressTest(TestParams &params)
+static TestResult StressTestPool(TestPoolParams &params)
 {
 	std::vector<float> allocTimes;
 	std::vector<float> newTimes;
@@ -245,10 +245,10 @@ static TestResult StressTest(TestParams &params)
 		ZoneNamedNC(perfTestIterLoopZone, "Iteration Loop", tracy::Color::Aquamarine3, true);
 		
 		srand(seed + i);
-		allocTimes.push_back(StressTestAlloc<T>(params.allocCount, params.maxConcurrent, params.maxSize));
+		allocTimes.push_back(StressTestPoolAlloc<T>(params.allocCount, params.maxConcurrent, params.maxSize));
 
 		srand(seed + i);
-		newTimes.push_back(StressTestNew<T>(params.allocCount, params.maxConcurrent, params.maxSize));
+		newTimes.push_back(StressTestPoolNew<T>(params.allocCount, params.maxConcurrent, params.maxSize));
 	}
 
 	TestResult result{};
@@ -282,7 +282,7 @@ void PerfTests::RunPoolPerfTests()
 {
 	ZoneScopedC(tracy::Color::Purple2);
 
-	std::vector<TestParams> tests = {
+	std::vector<TestPoolParams> tests = {
 		// TypeName,			Iterations, AllocCount, MaxConcurrent,	MaxAllocSize
 		{ "TestStructSmall",	16,			5000,		1 << 3,			1 << 3	},
 		{ "TestStructMed",		16,			5000,		1 << 3,			1 << 3	},
@@ -329,20 +329,20 @@ void PerfTests::RunPoolPerfTests()
 		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
 		ZoneValue(i);
 
-		TestParams &test = tests[i];
+		TestPoolParams &test = tests[i];
 
 		if (test.typeName == "TestStructSmall")
-			results.push_back(StressTest<TestStructSmall>(test));
+			results.push_back(StressTestPool<TestStructSmall>(test));
 		else if (test.typeName == "TestStructMed")
-			results.push_back(StressTest<TestStructMed>(test));
+			results.push_back(StressTestPool<TestStructMed>(test));
 		else if (test.typeName == "TestStructLarge")
-			results.push_back(StressTest<TestStructLarge>(test));
+			results.push_back(StressTestPool<TestStructLarge>(test));
 		else if (test.typeName == "char")
-			results.push_back(StressTest<char>(test));
+			results.push_back(StressTestPool<char>(test));
 		else if (test.typeName == "int")
-			results.push_back(StressTest<int>(test));
+			results.push_back(StressTestPool<int>(test));
 		else if (test.typeName == "size_t")
-			results.push_back(StressTest<size_t>(test));
+			results.push_back(StressTestPool<size_t>(test));
 	}
 
 	std::cout << "\nPool Allocator Performance Tests\n";
@@ -350,7 +350,7 @@ void PerfTests::RunPoolPerfTests()
 
 	for (int j = 0; j < results.size(); ++j)
 	{
-		TestParams &test = tests[j];
+		TestPoolParams &test = tests[j];
 		TestResult &result = results[j];
 
 		std::cout << std::format("Params: Type={}, Iterations={}, AllocCount={}, MaxConcurrent={}, MaxAllocSize={}, PageSize={}\n",
