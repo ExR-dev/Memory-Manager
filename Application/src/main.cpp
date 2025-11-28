@@ -73,8 +73,6 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-#pragma warning(disable: 4189)
-
     BuddyAllocator buddyAllocator;
     void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
@@ -101,15 +99,15 @@ int main()
     void *p8 = buddyAllocator.Alloc(500 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
-	//buddyAllocator.Free(foo);
-	//buddyAllocator.Free(p1);
-	//buddyAllocator.Free(p2);
-	//buddyAllocator.Free(p3);
-	//buddyAllocator.Free(p4);
-	//buddyAllocator.Free(p5);
-	//buddyAllocator.Free(p6);
-	//buddyAllocator.Free(p7);
-	//buddyAllocator.Free(p8);
+	buddyAllocator.Free(foo);
+	buddyAllocator.Free(p1);
+	buddyAllocator.Free(p2);
+	buddyAllocator.Free(p3);
+	buddyAllocator.Free(p4);
+	buddyAllocator.Free(p5);
+	buddyAllocator.Free(p6);
+	buddyAllocator.Free(p7);
+	buddyAllocator.Free(p8);
     
     FrameMark;
     
