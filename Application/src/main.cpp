@@ -99,15 +99,15 @@ int main()
     void *p8 = buddyAllocator.Alloc(500 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
-	//buddyAllocator.Free(foo);
-	//buddyAllocator.Free(p1);
-	//buddyAllocator.Free(p2);
-	//buddyAllocator.Free(p3);
-	//buddyAllocator.Free(p4);
-	//buddyAllocator.Free(p5);
-	//buddyAllocator.Free(p6);
-	//buddyAllocator.Free(p7);
-	//buddyAllocator.Free(p8);
+	buddyAllocator.Free(foo);
+	buddyAllocator.Free(p1);
+	buddyAllocator.Free(p2);
+	buddyAllocator.Free(p3);
+	buddyAllocator.Free(p4);
+	buddyAllocator.Free(p5);
+	buddyAllocator.Free(p6);
+	buddyAllocator.Free(p7);
+	buddyAllocator.Free(p8);
     
     FrameMark;
     
