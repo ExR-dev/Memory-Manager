@@ -90,7 +90,7 @@ int main()
     buddyAllocator.Free(baz);
     buddyAllocator.PrintAllocatedIndices();
 
-    void *p6 = buddyAllocator.Alloc(128 * 1000);
+    void *p6 = buddyAllocator.Alloc(128 * 10000);
     buddyAllocator.PrintAllocatedIndices();
 
     void *p7 = buddyAllocator.Alloc(36 * 1000);

@@ -93,6 +93,29 @@ private:
 		return FindBlockByOffset(block->right, offset);
 	}
 
+	bool HasChildren(Block* block)
+	{
+		return block->left != nullptr || block->right != nullptr;
+	}
+
+	bool CanMerge(Block* parent)
+	{
+		// If at least one child is allocated, we can't merge
+		if (!parent->left->isFree || !parent->right->isFree)
+			return false;
+
+		// If the left child has children, we can't merge
+		if (HasChildren(parent->left))
+			return false;
+		
+		// If the right child has children, we can't merge
+		if (HasChildren(parent->right))
+			return false;
+
+		// If both children are free and don't have any children of their own, we CAN merge
+		return true;
+	}
+
 public:
 	BuddyAllocator()
 	{
@@ -131,16 +154,14 @@ public:
 		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
 		Block* block = FindBlockByOffset(&m_blocks->at(0), offset);
 
-		//std::cout << offset << '\n';
-
 		if (block == nullptr)
-			return; // ITS BAD GET MOM
+			throw std::runtime_error("Block was nullptr when searching by offset. Could not free the memory."); // ITS BAD GET MOM
 
 		TracyFreeN(mem, "Buddy");
 
 		block->isFree = true;
 
-		if (Block* parent = block->parent; parent->left->isFree && parent->right->isFree)
+		if (Block* parent = block->parent; CanMerge(parent))
 		{
 			parent->left = nullptr;
 			parent->right = nullptr;
