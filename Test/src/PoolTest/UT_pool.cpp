@@ -3,8 +3,6 @@
 #include "../../../Application/inc/PoolAllocator.hpp"
 #include <gtest/gtest.h>
 
-#pragma warning(disable: 6262) // Disable stack size warning
-
 // Types
 
 struct TestStruct
@@ -366,7 +364,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 	}
 
 	// Free remaining allocations
-	for (int i = 0; i < currAllocs.size(); ++i)
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
 	{
 		int allocIdx = currAllocs[i];
 		ASSERT_EQ(Free<float>(allocs[allocIdx]), 0);
@@ -450,11 +448,9 @@ TEST(PoolTest, UnorderedAllocFreeStress_New)
 	}
 
 	// Free remaining allocations
-	for (int i = 0; i < currAllocs.size(); ++i)
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
 	{
 		int allocIdx = currAllocs[i];
 		delete[] allocs[allocIdx];
 	}
 }
-
-#pragma warning(default: 6262) // Reset stack size warning

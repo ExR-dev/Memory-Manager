@@ -2,7 +2,6 @@
 #include "TracyClient/public/tracy/Tracy.hpp"
 
 #ifdef DEBUG_TRACE_DEF
-#include <corecrt_malloc.h>
 #include <new>
 
 void *operator new(size_t size)
