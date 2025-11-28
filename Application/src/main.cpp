@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <iostream>
+#include <functional>
 
 struct TestStruct {
     int a = 1;
@@ -72,9 +73,8 @@ int main()
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-
     BuddyAllocator buddyAllocator;
-    void* foo = buddyAllocator.Alloc(75 * 1000);
+    /*void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
     void* baz = buddyAllocator.Alloc(36 * 1000);
     void *p1 = buddyAllocator.Alloc(128 * 1000);
@@ -83,8 +83,8 @@ int main()
     void *p4 = buddyAllocator.Alloc(100 * 1000);
     void *p5 = buddyAllocator.Alloc(128 * 1000);
 
-    std::cout << "The first alloc was placed at " << foo << std::endl;
-    std::cout << "The second alloc was placed at " << bar << std::endl;
+    std::cout << "The first alloc was placed at " << foo << "\n";
+    std::cout << "The second alloc was placed at " << bar << "\n";
     buddyAllocator.PrintAllocatedIndices();
     buddyAllocator.Free(bar);
     buddyAllocator.Free(baz);
@@ -107,7 +107,7 @@ int main()
 	buddyAllocator.Free(p5);
 	buddyAllocator.Free(p6);
 	buddyAllocator.Free(p7);
-	buddyAllocator.Free(p8);
+	buddyAllocator.Free(p8);*/
     
     FrameMark;
     
@@ -134,12 +134,17 @@ int main()
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
+		ImGuiID mainDockID = ImGui::DockSpaceOverViewport();
+
         // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
         {
             ZoneNamedNC(imguiWindowZone, "ImGui Window", tracy::Color::Firebrick4, true);
 
             static float f = 0.0f;
             static int counter = 0;
+
+			// Dock to the main dockspace
+			ImGui::SetNextWindowDockID(mainDockID, ImGuiCond_Always);
 
             ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
 
@@ -158,6 +163,123 @@ int main()
             if (ImGui::Button("Run Pool Performance Tests"))
             {
                 PerfTests::RunPoolPerfTests();
+			}
+
+			if (ImGui::TreeNode("Buddy Allocator Visualizer"))
+			{
+                std::array<char, 4096 * 1024> *memory = buddyAllocator.DBG_GetMemory();
+                std::vector<BuddyAllocator::Block> *blocks = buddyAllocator.DBG_GetBlocks();
+
+				static std::vector<BuddyAllocator::Block *> allocations;
+
+                static bool initAllocs = true;
+                if (initAllocs)
+                {
+                    for (size_t i = 0; i < blocks->size(); i++)
+                    {
+                        if (!blocks->at(i).isFree)
+                        {
+                            allocations.push_back(&blocks->at(i));
+						}
+                    }
+
+                    initAllocs = false;
+                }
+
+                if (ImGui::Button("Reset Allocator"))
+                {
+					buddyAllocator = BuddyAllocator();
+					allocations.clear();
+				}
+
+				static int allocSize = 64 * 1024;
+				ImGui::DragInt("##AllocationSize", &allocSize, 64.0f, 1, 4096 * 1024);
+                ImGui::SameLine();
+                if (ImGui::Button("Make Allocation"))
+                {
+					void *ptr = buddyAllocator.Alloc(static_cast<size_t>(allocSize));
+					if (ptr != nullptr)
+                    {
+                        BuddyAllocator::Block *block = buddyAllocator.DBG_GetAllocationBlock(ptr);
+                        allocations.push_back(block);
+                    }
+                }
+
+                if (ImGui::TreeNode("Current Allocations"))
+                {
+					for (size_t i = 0; i < allocations.size(); ++i)
+					{
+						BuddyAllocator::Block *block = allocations[i];
+						void *ptr = memory->data() + block->offset;
+                        if (!block)
+                            continue;
+                        
+                        ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, block->offset, block->size);
+                        ImGui::SameLine();
+                        if (ImGui::Button(std::format("Free##{}", i).c_str()))
+                        {
+                            buddyAllocator.Free(ptr);
+                            allocations.erase(allocations.begin() + i);
+                            --i;
+                        }
+					}
+
+                    ImGui::TreePop();
+                }
+
+                // Display blocks as a binary tree
+				std::function<void(BuddyAllocator::Block *, int, int)> displayBlock = [&](BuddyAllocator::Block *block, int index, int depth)
+				{
+                    if (block == nullptr)
+                        return;
+
+                    ImGui::Text("Size: %d", block->size);
+                    ImGui::Text("offset: %d", block->offset);
+
+					if (block->left == nullptr && block->right == nullptr)
+                    {
+                        // Display block data
+
+                        if (block->isFree)
+                        {
+                            ImGui::Text("Block is free");
+						}
+                        else if (ImGui::TreeNode("Data"))
+                        {
+                            char *buf = (char *)(memory->data() + block->offset);
+                            ImGui::InputTextMultiline("##data", buf, block->size);
+
+                            ImGui::TreePop();
+                        }
+					}
+
+					int child1Index = (2 * index) + 1;
+					int child2Index = 2 * (index + 1);
+
+					if (block->left != nullptr)
+                        if (ImGui::TreeNode(std::format("Block {}", child1Index).c_str()))
+                        {
+                            displayBlock(block->left, child1Index, depth + 1);
+						    ImGui::TreePop();
+                        }
+
+                    if (block->right != nullptr)
+                        if (ImGui::TreeNode(std::format("Block {}", child2Index).c_str()))
+                        {
+                            displayBlock(block->right, child2Index, depth + 1);
+						    ImGui::TreePop();
+                        }
+				};
+
+                BuddyAllocator::Block *root = &blocks->at(0);
+
+                if (ImGui::TreeNode(std::format("Block {}", 0).c_str()))
+                {
+                    displayBlock(root, 0, 0);
+                    ImGui::TreePop();
+                }
+
+                ImGui::TreePop();
 			}
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
