@@ -35,6 +35,9 @@ private:
 	{
 		ZoneScopedXC(tracy::Color::Fuchsia);
 
+		if (block == nullptr)
+			return nullptr;
+
 		// If the block we are checking is free, and if the data could fit in the block
 		if (block->isFree && block->size >= size)
 		{
@@ -79,6 +82,9 @@ private:
 	{
 		ZoneScopedXC(tracy::Color::LightSalmon);
 
+		if (block == nullptr)
+			return nullptr;
+
 		if (block->left == nullptr || block->right == nullptr)
 		{
 			if (block->offset == offset)
@@ -95,11 +101,14 @@ private:
 
 	bool HasChildren(Block* block)
 	{
-		return block->left != nullptr || block->right != nullptr;
+		return block == nullptr || block->left != nullptr || block->right != nullptr;
 	}
 
 	bool CanMerge(Block* parent)
 	{
+		if (parent == nullptr)
+			return false;
+
 		// If at least one child is allocated, we can't merge
 		if (!parent->left->isFree || !parent->right->isFree)
 			return false;
@@ -114,6 +123,16 @@ private:
 
 		// If both children are free and don't have any children of their own, we CAN merge
 		return true;
+	}
+
+	void FreeParent(Block* parent)
+	{
+		if (parent == nullptr || !CanMerge(parent))
+			return;
+
+		parent->left = nullptr;
+		parent->right = nullptr;
+		FreeParent(parent->parent);
 	}
 
 public:
@@ -161,11 +180,7 @@ public:
 
 		block->isFree = true;
 
-		if (Block* parent = block->parent; CanMerge(parent))
-		{
-			parent->left = nullptr;
-			parent->right = nullptr;
-		}
+		FreeParent(block->parent);
 	}
 
 	void PrintAllocatedIndices()
