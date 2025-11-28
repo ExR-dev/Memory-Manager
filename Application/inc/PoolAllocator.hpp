@@ -328,7 +328,7 @@ namespace MemoryInternal
 
 			return Get().m_freeRegionLinkStorage;
 		}
-		const static IndexType DBG_GetFreeRegionRoot()
+		static IndexType DBG_GetFreeRegionRoot()
 		{
 			if (!Get().m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
