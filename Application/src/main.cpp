@@ -77,11 +77,11 @@ int main()
     void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
     void* baz = buddyAllocator.Alloc(36 * 1000);
-    buddyAllocator.Alloc(128 * 1000);
-    buddyAllocator.Alloc(200 * 1000);
-    buddyAllocator.Alloc(30 * 1000);
-    buddyAllocator.Alloc(100 * 1000);
-    buddyAllocator.Alloc(128 * 1000);
+    void *p1 = buddyAllocator.Alloc(128 * 1000);
+    void *p2 = buddyAllocator.Alloc(200 * 1000);
+    void *p3 = buddyAllocator.Alloc(30 * 1000);
+    void *p4 = buddyAllocator.Alloc(100 * 1000);
+    void *p5 = buddyAllocator.Alloc(128 * 1000);
 
     std::cout << "The first alloc was placed at " << foo << std::endl;
     std::cout << "The second alloc was placed at " << bar << std::endl;
@@ -90,19 +90,24 @@ int main()
     buddyAllocator.Free(baz);
     buddyAllocator.PrintAllocatedIndices();
 
-    void *p1 = buddyAllocator.Alloc(128 * 1000);
+    void *p6 = buddyAllocator.Alloc(128 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
-    void *p2 = buddyAllocator.Alloc(36 * 1000);
+    void *p7 = buddyAllocator.Alloc(36 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
-    void *p3 = buddyAllocator.Alloc(500 * 1000);
+    void *p8 = buddyAllocator.Alloc(500 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
 	buddyAllocator.Free(foo);
 	buddyAllocator.Free(p1);
 	buddyAllocator.Free(p2);
 	buddyAllocator.Free(p3);
+	buddyAllocator.Free(p4);
+	buddyAllocator.Free(p5);
+	buddyAllocator.Free(p6);
+	buddyAllocator.Free(p7);
+	buddyAllocator.Free(p8);
     
     FrameMark;
     

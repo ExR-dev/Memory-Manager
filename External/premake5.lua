@@ -115,6 +115,8 @@ project "TracyClient"
         "Tracy/public/TracyClient.cpp",
     }
 
+	defines{ "TRACY_ENABLE", "TRACY_DETAILED" }
+
     includedirs{
         "Tracy/server/",
         "Tracy/public/",
@@ -146,6 +148,8 @@ project "TracyServer"
     objdir(objBuildPath .. "/TracyServer")
 
     libDirectory = "\"" .. path.getdirectory(_SCRIPT) .. "/Tracy\""
+
+	defines{ "TRACY_ENABLE", "TRACY_DETAILED" }
 
     filter "system:windows"
         kind "Utility"

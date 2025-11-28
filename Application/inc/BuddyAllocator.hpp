@@ -127,10 +127,15 @@ public:
 	{
 		ZoneScopedC(tracy::Color::Green);
 
-		TracyFreeN(mem, "Buddy");
-
 		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
 		Block* block = FindBlockByOffset(&m_blocks->at(0), offset);
+
+		std::cout << offset << '\n';
+
+		if (block == nullptr)
+			return; // ITS BAD GET MOM
+
+		TracyFreeN(mem, "Buddy");
 
 		block->isFree = true;
 
@@ -139,7 +144,6 @@ public:
 			parent->left = nullptr;
 			parent->right = nullptr;
 		}
-
 	}
 
 	void PrintAllocatedIndices()
