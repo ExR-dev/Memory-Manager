@@ -5,13 +5,15 @@ workspace "Memory-Manager"
 
     location("Generated")
     cppdialect "C++23"
-    warnings "Extra"
-    fatalwarnings { "All" }
+
     configurations
     {
         "debug",
         "release"
     }
+
+    warnings "Extra"
+    fatalwarnings { "All" }
 
     os.execute("git submodule update --recursive")
 

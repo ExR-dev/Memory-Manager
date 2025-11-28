@@ -97,7 +97,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
 
-			if (currAllocs.size() >= maxConcurrentAllocs)
+			if (currAllocs.size() >= static_cast<std::size_t>(maxConcurrentAllocs))
 				break;
 
 			int allocSize = (rand() % maxAllocSize) + 1;
@@ -126,7 +126,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 	}
 
 	// Free remaining allocations
-	for (int i = 0; i < currAllocs.size(); ++i)
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
 	{
 		int allocIdx = currAllocs[i];
 		Free<T>(allocs[allocIdx]);
@@ -183,7 +183,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
 
-			if (currAllocs.size() >= maxConcurrentAllocs)
+			if (currAllocs.size() >= static_cast<std::size_t>(maxConcurrentAllocs))
 				break;
 
 			int allocSize = (rand() % maxAllocSize) + 1;
@@ -213,7 +213,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 	}
 
 	// Free remaining allocations
-	for (int i = 0; i < currAllocs.size(); ++i)
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
 	{
 		int allocIdx = currAllocs[i];
 
@@ -324,7 +324,7 @@ void PerfTests::RunPoolPerfTests()
 	std::vector<TestResult> results;
 	results.reserve(tests.size());
 	
-	for (int i = 0; i < tests.size(); ++i)
+	for (std::size_t i = 0; i < tests.size(); ++i)
 	{
 		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
 		ZoneValue(i);
@@ -348,7 +348,7 @@ void PerfTests::RunPoolPerfTests()
 	std::cout << "\nPool Allocator Performance Tests\n";
 	std::cout << "Time measurements (ms)\n";
 
-	for (int j = 0; j < results.size(); ++j)
+	for (std::size_t j = 0; j < results.size(); ++j)
 	{
 		TestPoolParams &test = tests[j];
 		TestResult &result = results[j];

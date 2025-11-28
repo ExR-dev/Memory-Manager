@@ -2,6 +2,11 @@ project "Application"
     kind "ConsoleApp"
     location(rootPath .. "/Generated")
 
+    filter { "toolset:msc" }
+        disablewarnings { "6262" }
+    filter { "toolset:clang or toolset:gcc" }
+        disablewarnings { "maybe-uninitialized" }
+
     local externalLibPath = targetBuildPath .. "/External/lib"
     libdirs(externalLibPath)
     targetdir(targetBuildPath .. "/%{prj.name}")
@@ -15,6 +20,7 @@ project "Application"
 	defines{ "TRACY_ENABLE", "TRACY_DETAILED" }
 
     links{"Library", "ImGui", "TracyClient"}
+
 
     filter "system:windows"
         links{"SDL3-static", "imagehlp", "setupapi", "user32", "version", "uuid", "winmm", "imm32"}       
