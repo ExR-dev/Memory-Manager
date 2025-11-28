@@ -74,7 +74,7 @@ int main()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     BuddyAllocator buddyAllocator;
-    void* foo = buddyAllocator.Alloc(75 * 1000);
+    /*void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
     void* baz = buddyAllocator.Alloc(36 * 1000);
     void *p1 = buddyAllocator.Alloc(128 * 1000);
@@ -107,7 +107,7 @@ int main()
 	buddyAllocator.Free(p5);
 	buddyAllocator.Free(p6);
 	buddyAllocator.Free(p7);
-	buddyAllocator.Free(p8);
+	buddyAllocator.Free(p8);*/
     
     FrameMark;
     
@@ -246,24 +246,8 @@ int main()
 						}
                         else if (ImGui::TreeNode("Data"))
                         {
-							const size_t bytesPerRow = 16;
-							std::string row;
-							for (size_t i = 0; i < block->size; i++)
-							{
-								char byte = memory->at(block->offset + i);
-								row += std::format("{:02X} ", static_cast<unsigned char>(byte));
-								if ((i + 1) % bytesPerRow == 0)
-								{
-									ImGui::Text("%s", row.c_str());
-									row.clear();
-
-                                    if (i >= 20)
-                                    {
-                                        ImGui::Text("...");
-                                        break;
-                                    }
-								}
-							}
+                            char *buf = (char *)(memory->data() + block->offset);
+                            ImGui::InputTextMultiline("##data", buf, block->size);
 
                             ImGui::TreePop();
                         }
