@@ -12,6 +12,8 @@ project "Application"
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
     dependson{"ImGui", "SDL3", "TracyClient"}
 
+	defines{ "TRACY_ENABLE", "TRACY_DETAILED" }
+
     links{"Library", "ImGui", "TracyClient"}
 
     filter "system:windows"

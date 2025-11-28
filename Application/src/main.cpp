@@ -90,13 +90,19 @@ int main()
     buddyAllocator.Free(baz);
     buddyAllocator.PrintAllocatedIndices();
 
-    buddyAllocator.Alloc(128 * 1000);
-    buddyAllocator.PrintAllocatedIndices();
-    buddyAllocator.Alloc(36 * 1000);
+    void *p1 = buddyAllocator.Alloc(128 * 1000);
     buddyAllocator.PrintAllocatedIndices();
 
-    buddyAllocator.Alloc(500 * 1000);
+    void *p2 = buddyAllocator.Alloc(36 * 1000);
     buddyAllocator.PrintAllocatedIndices();
+
+    void *p3 = buddyAllocator.Alloc(500 * 1000);
+    buddyAllocator.PrintAllocatedIndices();
+
+	buddyAllocator.Free(foo);
+	buddyAllocator.Free(p1);
+	buddyAllocator.Free(p2);
+	buddyAllocator.Free(p3);
     
     FrameMark;
     
