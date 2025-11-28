@@ -221,13 +221,12 @@ int main()
                         {
 							// Draw block with ImGui
 							ImDrawList *drawList = ImGui::GetWindowDrawList();
-                            ImVec2 windowPos = ImGui::GetWindowPos();
-                            ImVec2 cursorPos = ImGui::GetCursorPos();
+                            ImVec2 cursorScreenPos = ImGui::GetCursorScreenPos();
 
 							float blockOffset = width * (static_cast<float>(currentBlock->offset) / static_cast<float>(totalMemory));
                             float blockWidth = width * (static_cast<float>(currentBlock->size) / static_cast<float>(totalMemory));
 
-                            ImVec2 blockPos = ImVec2(windowPos.x + cursorPos.x + blockOffset, windowPos.y + cursorPos.y);
+                            ImVec2 blockPos = ImVec2(cursorScreenPos.x + blockOffset, cursorScreenPos.y);
                             ImU32 blockColor = isAllocated ? IM_COL32(200, 50, 50, 255) : IM_COL32(50, 200, 50, 100);
 
                             drawList->AddRectFilled(blockPos, ImVec2(blockPos.x + blockWidth, blockPos.y + height), blockColor);
@@ -337,6 +336,114 @@ int main()
 
                 ImGui::TreePop();
 			}
+
+            if (ImGui::TreeNode("Pool Allocator Visualizer"))
+            {
+                using namespace MemoryInternal;
+
+				PoolAllocator<char>::Initialize(4096);
+
+				auto &pageStorage = PoolAllocator<char>::DBG_GetPageStorage();
+				auto &allocMap = PoolAllocator<char>::DBG_GetAllocMap();
+                auto &freeRegions = PoolAllocator<char>::DBG_GetFreeRegions();
+                auto freeRegionRoot = PoolAllocator<char>::DBG_GetFreeRegionRoot();
+
+				static std::vector<char *> allocations;
+
+				// Draw blocks
+                {
+                    static float width = 600.0f;
+					static float height = 40.0f;
+                    ImGui::SliderFloat("##BlockWidth", &width, 100.0f, 1200.0f, "%.1f");
+                    ImGui::SliderFloat("##BlockHeight", &height, 10.0f, 100.0f, "%.1f");
+
+					size_t totalMemory = pageStorage.size();
+
+                    // Draw allocated blocks
+                    ImDrawList *drawList = ImGui::GetWindowDrawList();
+                    ImVec2 cursorScreenPos = ImGui::GetCursorScreenPos();
+
+					// Draw background block for total memory
+					ImVec2 bgPos = ImVec2(cursorScreenPos.x, cursorScreenPos.y);
+					ImU32 bgColor = IM_COL32(200, 50, 50, 128);
+					drawList->AddRectFilled(bgPos, ImVec2(bgPos.x + width, bgPos.y + height), bgColor);
+					drawList->AddRect(bgPos, ImVec2(bgPos.x + width, bgPos.y + height), bgColor);
+
+                    IndexType freeRegionIndex = freeRegionRoot;
+
+					// Draw free regions over the background
+                    while (freeRegionIndex != NULL_INDEX)
+                    {
+						auto &freeRegion = freeRegions[freeRegionIndex];
+
+                        if (freeRegion.size == 0)
+                            break;
+
+						float regionOffset = width * (static_cast<float>(freeRegion.offset) / static_cast<float>(totalMemory));
+						float regionWidth = width * (static_cast<float>(freeRegion.size) / static_cast<float>(totalMemory));
+
+                        ImVec2 regionPos = ImVec2(cursorScreenPos.x + regionOffset, cursorScreenPos.y);
+                        ImU32 regionColor = IM_COL32(50, 200, 50, 128);
+
+                        drawList->AddRectFilled(regionPos, ImVec2(regionPos.x + regionWidth, regionPos.y + height), regionColor);
+                        drawList->AddRect(regionPos, ImVec2(regionPos.x + regionWidth, regionPos.y + height), regionColor);
+						freeRegionIndex = freeRegion.next;
+                    }
+
+					ImGui::Dummy(ImVec2(width, height));
+                }
+
+                if (ImGui::Button("Reset Allocator"))
+				{
+					PoolAllocator<char>::Reset();
+					allocations.clear();
+				}
+                else
+                {
+                    static int allocSize = 256;
+                    ImGui::DragInt("##AllocationSize", &allocSize, 1.0f, 1, (int)pageStorage.size());
+                    ImGui::SameLine();
+                    if (ImGui::Button("Make Allocation"))
+                    {
+                        char *ptr = PoolAllocator<char>::Alloc(static_cast<IndexType>(allocSize));
+                        if (ptr != nullptr)
+                            allocations.push_back(ptr);
+                    }
+
+                    if (ImGui::TreeNode("Current Allocations"))
+                    {
+                        for (size_t i = 0; i < allocations.size(); ++i)
+                        {
+							ImGui::PushID(static_cast<int>(i));
+
+							char *ptr = allocations[i];
+
+							IndexType offset = static_cast<IndexType>(ptr - pageStorage.data());
+                            IndexType blockSize = allocMap[offset];
+
+                            ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, offset, blockSize);
+                            ImGui::SameLine();
+                            if (ImGui::Button(std::format("Free##{}", i).c_str()))
+                            {
+								PoolAllocator<char>::Free(ptr);
+								allocations.erase(allocations.begin() + i);
+                                --i;
+                            }
+                                
+                            ImGui::InputTextMultiline("##data", ptr, blockSize);
+
+                            ImGui::Separator();
+
+							ImGui::PopID();
+                        }
+
+                        ImGui::TreePop();
+                    }
+
+                }
+
+                ImGui::TreePop();
+            }
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::End();
