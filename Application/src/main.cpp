@@ -74,7 +74,7 @@ int main()
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     BuddyAllocator buddyAllocator;
-    /*void* foo = buddyAllocator.Alloc(75 * 1000);
+    void* foo = buddyAllocator.Alloc(75 * 1000);
     void* bar = buddyAllocator.Alloc(36 * 1000);
     void* baz = buddyAllocator.Alloc(36 * 1000);
     void *p1 = buddyAllocator.Alloc(128 * 1000);
@@ -107,7 +107,7 @@ int main()
 	buddyAllocator.Free(p5);
 	buddyAllocator.Free(p6);
 	buddyAllocator.Free(p7);
-	buddyAllocator.Free(p8);*/
+	buddyAllocator.Free(p8);
     
     FrameMark;
     
@@ -186,97 +186,153 @@ int main()
                     initAllocs = false;
                 }
 
+                // Draw blocks
+                {
+                    static float width = 600.0f;
+                    static float height = 40.0f;
+					ImGui::SliderFloat("##BlockWidth", &width, 100.0f, 1200.0f, "%.1f");
+					ImGui::SliderFloat("##BlockHeight", &height, 10.0f, 100.0f, "%.1f");
+
+                    size_t totalMemory = memory->size();
+
+                    BuddyAllocator::Block *rootBlock = &blocks->at(0);
+
+					std::function<void(BuddyAllocator::Block *)> traverseBlocks;
+
+                    traverseBlocks = [&](BuddyAllocator::Block *currentBlock)
+                    {
+						bool drawBlock = true;
+
+                        if (currentBlock->left)
+                        {
+                            traverseBlocks(currentBlock->left);
+							drawBlock = false;
+                        }
+
+                        if (currentBlock->right)
+                        {
+                            traverseBlocks(currentBlock->right);
+							drawBlock = false;
+                        }
+
+                        bool isAllocated = !currentBlock->isFree;
+
+                        if (drawBlock)
+                        {
+							// Draw block with ImGui
+							ImDrawList *drawList = ImGui::GetWindowDrawList();
+                            ImVec2 windowPos = ImGui::GetWindowPos();
+                            ImVec2 cursorPos = ImGui::GetCursorPos();
+
+							float blockOffset = width * (static_cast<float>(currentBlock->offset) / static_cast<float>(totalMemory));
+                            float blockWidth = width * (static_cast<float>(currentBlock->size) / static_cast<float>(totalMemory));
+
+                            ImVec2 blockPos = ImVec2(windowPos.x + cursorPos.x + blockOffset, windowPos.y + cursorPos.y);
+                            ImU32 blockColor = isAllocated ? IM_COL32(200, 50, 50, 255) : IM_COL32(50, 200, 50, 100);
+
+                            drawList->AddRectFilled(blockPos, ImVec2(blockPos.x + blockWidth, blockPos.y + height), blockColor);
+                            drawList->AddRect(blockPos, ImVec2(blockPos.x + blockWidth, blockPos.y + height), IM_COL32(0, 0, 0, 255));
+						}
+                    };
+
+                    traverseBlocks(rootBlock);
+
+					ImGui::Dummy(ImVec2(width, height));
+                }
+
                 if (ImGui::Button("Reset Allocator"))
                 {
 					buddyAllocator = BuddyAllocator();
 					allocations.clear();
 				}
-
-				static int allocSize = 64 * 1024;
-				ImGui::DragInt("##AllocationSize", &allocSize, 64.0f, 1, 4096 * 1024);
-                ImGui::SameLine();
-                if (ImGui::Button("Make Allocation"))
+                else
                 {
-					void *ptr = buddyAllocator.Alloc(static_cast<size_t>(allocSize));
-					if (ptr != nullptr)
+                    static int allocSize = 64 * 1024;
+                    ImGui::DragInt("##AllocationSize", &allocSize, 64.0f, 1, 4096 * 1024);
+                    ImGui::SameLine();
+                    if (ImGui::Button("Make Allocation"))
                     {
-                        BuddyAllocator::Block *block = buddyAllocator.DBG_GetAllocationBlock(ptr);
-                        allocations.push_back(block);
+                        void *ptr = buddyAllocator.Alloc(static_cast<size_t>(allocSize));
+                        if (ptr != nullptr)
+                        {
+                            BuddyAllocator::Block *block = buddyAllocator.DBG_GetAllocationBlock(ptr);
+                            allocations.push_back(block);
+                        }
                     }
-                }
 
-                if (ImGui::TreeNode("Current Allocations"))
-                {
-					for (size_t i = 0; i < allocations.size(); ++i)
-					{
-						BuddyAllocator::Block *block = allocations[i];
-						void *ptr = memory->data() + block->offset;
-                        if (!block)
-                            continue;
-                        
-                        ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, block->offset, block->size);
-                        ImGui::SameLine();
-                        if (ImGui::Button(std::format("Free##{}", i).c_str()))
-                        {
-                            buddyAllocator.Free(ptr);
-                            allocations.erase(allocations.begin() + i);
-                            --i;
-                        }
-					}
-
-                    ImGui::TreePop();
-                }
-
-                // Display blocks as a binary tree
-				std::function<void(BuddyAllocator::Block *, int, int)> displayBlock = [&](BuddyAllocator::Block *block, int index, int depth)
-				{
-                    if (block == nullptr)
-                        return;
-
-                    ImGui::Text("Size: %d", block->size);
-                    ImGui::Text("offset: %d", block->offset);
-
-					if (block->left == nullptr && block->right == nullptr)
+                    if (ImGui::TreeNode("Current Allocations"))
                     {
-                        // Display block data
-
-                        if (block->isFree)
+                        for (size_t i = 0; i < allocations.size(); ++i)
                         {
-                            ImGui::Text("Block is free");
-						}
-                        else if (ImGui::TreeNode("Data"))
-                        {
-                            char *buf = (char *)(memory->data() + block->offset);
-                            ImGui::InputTextMultiline("##data", buf, block->size);
+                            BuddyAllocator::Block *block = allocations[i];
+                            void *ptr = memory->data() + block->offset;
+                            if (!block)
+                                continue;
 
-                            ImGui::TreePop();
-                        }
-					}
-
-					int child1Index = (2 * index) + 1;
-					int child2Index = 2 * (index + 1);
-
-					if (block->left != nullptr)
-                        if (ImGui::TreeNode(std::format("Block {}", child1Index).c_str()))
-                        {
-                            displayBlock(block->left, child1Index, depth + 1);
-						    ImGui::TreePop();
+                            ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, block->offset, block->size);
+                            ImGui::SameLine();
+                            if (ImGui::Button(std::format("Free##{}", i).c_str()))
+                            {
+                                buddyAllocator.Free(ptr);
+                                allocations.erase(allocations.begin() + i);
+                                --i;
+                            }
                         }
 
-                    if (block->right != nullptr)
-                        if (ImGui::TreeNode(std::format("Block {}", child2Index).c_str()))
+                        ImGui::TreePop();
+                    }
+
+                    // Display blocks as a binary tree
+                    std::function<void(BuddyAllocator::Block *, int, int)> displayBlock = [&](BuddyAllocator::Block *block, int index, int depth)
+                    {
+                        if (block == nullptr)
+                            return;
+
+                        ImGui::Text("Size: %d", block->size);
+                        ImGui::Text("offset: %d", block->offset);
+
+                        if (block->left == nullptr && block->right == nullptr)
                         {
-                            displayBlock(block->right, child2Index, depth + 1);
-						    ImGui::TreePop();
+                            // Display block data
+
+                            if (block->isFree)
+                            {
+                                ImGui::Text("Block is free");
+                            }
+                            else if (ImGui::TreeNode("Data"))
+                            {
+                                char *buf = (char *)(memory->data() + block->offset);
+                                ImGui::InputTextMultiline("##data", buf, block->size);
+
+                                ImGui::TreePop();
+                            }
                         }
-				};
 
-                BuddyAllocator::Block *root = &blocks->at(0);
+                        int child1Index = (2 * index) + 1;
+                        int child2Index = 2 * (index + 1);
 
-                if (ImGui::TreeNode(std::format("Block {}", 0).c_str()))
-                {
-                    displayBlock(root, 0, 0);
-                    ImGui::TreePop();
+                        if (block->left != nullptr)
+                            if (ImGui::TreeNode(std::format("Block {}", child1Index).c_str()))
+                            {
+                                displayBlock(block->left, child1Index, depth + 1);
+                                ImGui::TreePop();
+                            }
+
+                        if (block->right != nullptr)
+                            if (ImGui::TreeNode(std::format("Block {}", child2Index).c_str()))
+                            {
+                                displayBlock(block->right, child2Index, depth + 1);
+                                ImGui::TreePop();
+                            }
+                    };
+
+                    BuddyAllocator::Block *root = &blocks->at(0);
+
+                    if (ImGui::TreeNode(std::format("Block {}", 0).c_str()))
+                    {
+                        displayBlock(root, 0, 0);
+                        ImGui::TreePop();
+                    }
                 }
 
                 ImGui::TreePop();
