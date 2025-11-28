@@ -10,18 +10,19 @@
 
 class BuddyAllocator
 {
-private:
+public:
 	struct Block
 	{
 		bool isFree = true;
 		size_t size = 0;
 		size_t offset = 0;
 
-		Block* left = nullptr;
-		Block* right = nullptr;
-		Block* parent = nullptr;
+		Block *left = nullptr;
+		Block *right = nullptr;
+		Block *parent = nullptr;
 	};
 
+private:
 	std::unique_ptr<std::array<char, 4096 * 1024>> m_memory;
 	size_t m_minimumSize = 32 * 1024;
 
@@ -178,5 +179,37 @@ public:
 		}
 
 		std::cout << std::flush;
+	}
+
+
+	std::array<char, 4096 * 1024>* DBG_GetMemory()
+	{
+		return m_memory.get();
+	}
+
+	std::vector<Block>* DBG_GetBlocks()
+	{
+		return m_blocks.get();
+	}
+
+	size_t DBG_GetMinimumSize()
+	{
+		return m_minimumSize;
+	}
+
+	size_t DBG_GetNumRows()
+	{
+		return m_numRows;
+	}
+
+	size_t DBG_GetNumBlocks()
+	{
+		return m_numBlocks;
+	}
+
+	Block* DBG_GetAllocationBlock(void* ptr)
+	{
+		const ptrdiff_t offset = static_cast<char*>(ptr) - m_memory->data();
+		return FindBlockByOffset(&m_blocks->at(0), offset);
 	}
 };
