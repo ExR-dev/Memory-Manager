@@ -73,7 +73,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % (currAllocs.size() / 5 + 1);
+			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -93,7 +93,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
+		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -158,7 +158,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % (currAllocs.size() / 5 + 1);
+			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -179,7 +179,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % ((maxConcurrentAllocs - currAllocs.size()) / 4 + 1);
+		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -308,6 +308,8 @@ void PerfTests::RunPoolPerfTests()
 	};
 
 	std::vector<int> maxConcurrent = {
+		1 << 0,
+		1 << 1,
 		1 << 2,
 		1 << 3,
 		1 << 4,
@@ -317,7 +319,10 @@ void PerfTests::RunPoolPerfTests()
 		1 << 8,
 		1 << 9,
 		1 << 10,
-		1 << 11
+		1 << 11,
+		1 << 12,
+		1 << 13,
+		1 << 14
 	};
 
 	std::vector<int> maxAllocSizes = {
@@ -332,10 +337,13 @@ void PerfTests::RunPoolPerfTests()
 		1 << 8,
 		1 << 9,
 		1 << 10,
-		1 << 11
+		1 << 11,
+		1 << 12,
+		1 << 13,
+		1 << 14
 	};
 
-	size_t maxMemUsage = 1ull << 16; // 64 KB
+	size_t maxMemUsage = 1ull << 24; // 16 MB
 
 
 	std::vector<TestPoolParams> tests = {
@@ -397,8 +405,8 @@ void PerfTests::RunPoolPerfTests()
 
 				tests.push_back({ 
 					typeName, 
-					1, 
-					100, 
+					8, 
+					5000, 
 					(concurrent), 
 					(allocSize)
 				});

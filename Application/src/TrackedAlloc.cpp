@@ -1,7 +1,7 @@
 #include "TrackedAlloc.hpp"
 #include "TracyClient/public/tracy/Tracy.hpp"
 
-#ifdef DEBUG_TRACE_DEF
+#ifdef TRACY_ENABLE
 #include <new>
 
 void *operator new(size_t size)
