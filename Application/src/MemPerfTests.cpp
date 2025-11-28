@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <fstream>
 #include <format>
 
 
@@ -277,14 +278,69 @@ static TestResult StressTestPool(TestPoolParams &params)
 	return result;
 }
 
+size_t GetTypeSizeByName(const std::string &typeName)
+{
+	if (typeName == "TestStructSmall")
+		return sizeof(TestStructSmall);
+	else if (typeName == "TestStructMed")
+		return sizeof(TestStructMed);
+	else if (typeName == "TestStructLarge")
+		return sizeof(TestStructLarge);
+	else if (typeName == "char")
+		return sizeof(char);
+	else if (typeName == "int")
+		return sizeof(int);
+	else if (typeName == "size_t")
+		return sizeof(size_t);
+	return 0;
+}
+
 
 void PerfTests::RunPoolPerfTests()
 {
 	ZoneScopedC(tracy::Color::Purple2);
 
+
+	std::vector<std::string> typeNames = {
+		"TestStructSmall",
+		"TestStructMed",
+		"TestStructLarge",
+	};
+
+	std::vector<int> maxConcurrent = {
+		1 << 2,
+		1 << 3,
+		1 << 4,
+		1 << 5,
+		1 << 6,
+		1 << 7,
+		1 << 8,
+		1 << 9,
+		1 << 10,
+		1 << 11
+	};
+
+	std::vector<int> maxAllocSizes = {
+		1 << 0,
+		1 << 1,
+		1 << 2,
+		1 << 3,
+		1 << 4,
+		1 << 5,
+		1 << 6,
+		1 << 7,
+		1 << 8,
+		1 << 9,
+		1 << 10,
+		1 << 11
+	};
+
+	size_t maxMemUsage = 1ull << 16; // 64 KB
+
+
 	std::vector<TestPoolParams> tests = {
 		// TypeName,			Iterations, AllocCount, MaxConcurrent,	MaxAllocSize
-		{ "TestStructSmall",	16,			5000,		1 << 3,			1 << 3	},
+		/*{ "TestStructSmall",	16,			5000,		1 << 3,			1 << 3	},
 		{ "TestStructMed",		16,			5000,		1 << 3,			1 << 3	},
 		{ "TestStructLarge",	16,			5000,		1 << 3,			1 << 3	},
 
@@ -318,8 +374,39 @@ void PerfTests::RunPoolPerfTests()
 																			   
 		{ "char",				16,			3000,		1 << 9,			1 << 6	},
 		{ "int",				16,			3000,		1 << 9,			1 << 6	},
-		{ "size_t",				16,			3000,		1 << 9,			1 << 6	},
+		{ "size_t",				16,			3000,		1 << 9,			1 << 6	},*/
 	};
+
+
+	for (size_t i = 0; i < typeNames.size(); i++)
+	{
+		std::string &typeName = typeNames[i];
+
+		for (size_t j = 0; j < maxConcurrent.size(); j++)
+		{
+			int concurrent = maxConcurrent[j];
+
+			for (size_t k = 0; k < maxAllocSizes.size(); k++)
+			{
+				int allocSize = maxAllocSizes[k];
+
+				size_t totalMemUsage = static_cast<size_t>(allocSize) * concurrent * GetTypeSizeByName(typeName);
+
+				if (totalMemUsage > maxMemUsage)
+					continue; // Skip tests that exceed max memory usage
+
+				tests.push_back({ 
+					typeName, 
+					1, 
+					100, 
+					(concurrent), 
+					(allocSize)
+				});
+			}
+		}
+	}
+
+
 
 	std::vector<TestResult> results;
 	results.reserve(tests.size());
@@ -367,5 +454,33 @@ void PerfTests::RunPoolPerfTests()
 			result.newMinTimeMs / result.allocMinTimeMs,
 			result.newMaxTimeMs / result.allocMaxTimeMs);
 		std::cout << "\n";
+	}
+
+	// Write results to file
+	{
+		std::ofstream resultFile("PoolAllocPerfResults.txt");
+
+		resultFile << "Pool Allocator Performance Tests\n";
+
+		resultFile << "\n";
+		resultFile << "Type Size\tMax Concurrent Allocs\tMax Alloc Size\tPool Avg Ms\tPool Min Ms\tPool Max Ms\tNew Avg Ms\tNew Min Ms\tNew Max Ms\n";
+
+		for (std::size_t j = 0; j < results.size(); ++j)
+		{
+			TestPoolParams &test = tests[j];
+			TestResult &result = results[j];
+
+			resultFile << std::format(
+				"{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+				GetTypeSizeByName(test.typeName), test.maxConcurrent, test.maxSize,
+				result.allocAvgTimeMs, result.allocMinTimeMs, result.allocMaxTimeMs,
+				result.newAvgTimeMs, result.newMinTimeMs, result.newMaxTimeMs
+			);
+
+		}
+
+		resultFile << "\n";
+
+		resultFile.close();
 	}
 }
