@@ -15,28 +15,28 @@ namespace MemoryInternal
 	typedef unsigned int IndexType;
 
 	constexpr IndexType NULL_INDEX = static_cast<IndexType>(-1);
-
 	constexpr IndexType DEFAULT_PAGE_SIZE = (1 << 13);
-
 #ifdef FREE_REGION_CACHE
 	constexpr IndexType FREE_REGION_CACHE_GRANULARITY = (1 << 5);
 #endif
 
-	struct AllocLink
-	{
-		IndexType offset;
-		IndexType size;
-		IndexType next;
-
-		AllocLink() : offset(0), size(0), next(NULL_INDEX) { }
-		AllocLink(IndexType off, IndexType sz)
-			: offset(off), size(sz), next(NULL_INDEX) { }
-	};
 
 	template <typename T>
 	class PoolAllocator
 	{
 	public:
+		struct AllocLink
+		{
+			IndexType offset;
+			IndexType size;
+			IndexType next;
+
+			AllocLink() : offset(0), size(0), next(NULL_INDEX) {}
+			AllocLink(IndexType off, IndexType sz)
+				: offset(off), size(sz), next(NULL_INDEX) {
+			}
+		};
+
 		static int Initialize(IndexType maxCount)
 		{
 			PoolAllocator<T> &registry = Get();
@@ -476,6 +476,7 @@ namespace MemoryInternal
 #endif
 	};
 
+
 	template <typename T>
 	[[nodiscard]] inline T *Alloc(IndexType count)
 	{
@@ -487,4 +488,4 @@ namespace MemoryInternal
 	{
 		return PoolAllocator<T>::Free(ptr);
 	}
-}
+};
