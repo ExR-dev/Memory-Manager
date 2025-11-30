@@ -8,7 +8,10 @@
 #include <iostream>
 #include <fstream>
 #include <format>
+#include <algorithm>
 
+#include "BuddyAllocator.hpp"
+#include "StackAllocator.hpp"
 
 struct TestStructSmall
 {
@@ -76,7 +79,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+			int freeCount = rand() % std::max(static_cast<unsigned long long>(currAllocs.size() / 5 + 1), 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -96,7 +99,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		int newAllocs = rand() % std::max(static_cast<unsigned long long>(maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -161,7 +164,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+			int freeCount = rand() % std::max(static_cast<unsigned long long>(currAllocs.size() / 5 + 1), 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -182,7 +185,7 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		int newAllocs = rand() % std::max(static_cast<unsigned long long>(maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -305,7 +308,7 @@ static float StressTestPoolNonArrayAlloc(int allocCount, int maxConcurrentAllocs
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+			int freeCount = rand() % std::max(static_cast<unsigned long long>(currAllocs.size() / 5 + 1), 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -325,7 +328,7 @@ static float StressTestPoolNonArrayAlloc(int allocCount, int maxConcurrentAllocs
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		int newAllocs = rand() % std::max(static_cast<unsigned long long>(maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -389,7 +392,7 @@ static float StressTestPoolNonArrayNew(int allocCount, int maxConcurrentAllocs)
 		if (currAllocs.size() > 0)
 		{
 			// Free a random number of current allocations
-			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+			int freeCount = rand() % std::max(static_cast<unsigned long long>(currAllocs.size()) / 5 + 1, 2ull);
 
 			for (int j = 0; j < freeCount; ++j)
 			{
@@ -410,7 +413,7 @@ static float StressTestPoolNonArrayNew(int allocCount, int maxConcurrentAllocs)
 		}
 
 		// Allocate a random number of floats
-		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		int newAllocs = rand() % std::max(static_cast<unsigned long long>(maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
 		for (int j = 0; j < newAllocs; ++j)
 		{
 			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
@@ -507,6 +510,7 @@ static TestResult StressTestPoolNonArray(TestPoolParams &params)
 
 	return result;
 }
+
 
 
 
@@ -760,5 +764,147 @@ void PerfTests::RunPoolPerfTests()
 		resultFile << "\n";
 
 		resultFile.close();
+	}
+}
+
+static void StressTestStackAlloc()
+{
+	StackAllocator stackAllocator;
+	int testInt = 0;
+
+	{ // Testing 16 allocations
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 16; ++i)
+		{
+			stackAllocator.Push(&testInt, sizeof(testInt));
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	stackAllocator.Reset();
+
+	{ // Testing 64 allocations
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 64; ++i)
+		{
+			stackAllocator.Push(&testInt, sizeof(testInt));
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	stackAllocator.Reset();
+
+	{ // Testing 256 allocations
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 256; ++i)
+		{
+			stackAllocator.Push(&testInt, sizeof(testInt));
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	stackAllocator.Reset();
+
+	{ // Testing 512 allocations
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 512; ++i)
+		{
+			stackAllocator.Push(&testInt, sizeof(testInt));
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	stackAllocator.Reset();
+
+	{ // Testing 1024 allocations
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			stackAllocator.Push(&testInt, sizeof(testInt));
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	stackAllocator.Reset();
+}
+
+static void StressTestBuddyAlloc()
+{
+
+	{ // Testing 16 allocations
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 16; ++i)
+		{
+			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	{ // Testing 64 allocations
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 64; ++i)
+		{
+			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	{ // Testing 256 allocations
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 256; ++i)
+		{
+			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	{ // Testing 512 allocations
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 512; ++i)
+		{
+			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
+	}
+
+	{
+		// Testing 1024 allocations
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
 }
