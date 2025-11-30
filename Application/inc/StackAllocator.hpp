@@ -32,42 +32,27 @@ public:
 		*(m_stack.get()) = {};
 	}
 
-	void* At(size_t idx)
-	{
-		ZoneScopedXC(tracy::Color::DarkGreen);
-
-		if (idx >= m_top)
-			return nullptr;
-
-		return &m_stack.get()->at(idx);
-	}
-
-	size_t Push(void* data, size_t size)
+	void* Alloc(size_t size)
 	{
 		ZoneScopedC(tracy::Color::CornflowerBlue);
 
 		if (m_top + size > STACK_SIZE)
-			return (size_t)-1;
+			return nullptr;
 
-		size_t start = m_top;
-		char* begin = m_stack.get()->data();
+		char* ptr = m_stack.get()->data();
+		ptr += m_top;
+		m_top += size;
 
 #ifdef TRACY_ENABLE
-		TracyAllocN(begin + m_top, size, "Stack");
-		m_dbgTrackedAllocs.push(begin + m_top);
+		TracyAllocN(ptr, size, "Stack");
+		m_dbgTrackedAllocs.push(ptr);
 #endif
 
 #ifdef DBG_STACK_TRACK_SIZE
 		m_dbgTrackedSizes.push_back(size);
 #endif
 
-		for (size_t i = 0; i < size; i++)
-		{
-			begin[m_top] = ((char*)data)[i];
-			m_top++;
-		}
-
-		return start;
+		return ptr;
 	}
 
 	void Reset()
@@ -88,7 +73,7 @@ public:
 		m_top = 0;
 	}
 
-	size_t DBG_GetTop()
+	size_t DBG_GetTop() const
 	{
 		return m_top;
 	}
