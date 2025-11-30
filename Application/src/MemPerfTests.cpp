@@ -57,6 +57,7 @@ struct TestPoolParams
 
 
 
+
 template<typename T>
 static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
 {
@@ -513,7 +514,6 @@ static TestResult StressTestPoolNonArray(TestPoolParams &params)
 
 
 
-
 static size_t GetTypeSizeByName(const std::string &typeName)
 {
 	if (typeName == "TestStructSmall")
@@ -531,10 +531,14 @@ static size_t GetTypeSizeByName(const std::string &typeName)
 	return 0;
 }
 
+
+static size_t trashVar = 0;
+
 void PerfTests::RunPoolPerfTests()
 {
 	ZoneScopedC(tracy::Color::Purple2);
 
+	std::cout << trashVar << std::endl;
 
 	
 	std::vector<std::string> typeNames = {
@@ -768,19 +772,20 @@ void PerfTests::RunPoolPerfTests()
 }
 
 
-
 void PerfTests::StressTestStackAlloc()
 {
-
 	{ // Testing 16 allocations
 		StackAllocator stackAllocator;
 
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 16; ++i)
 		{
-			stackAllocator.Alloc(sizeof(int));
-			stackAllocator.Reset();
+			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
 		}
+		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
@@ -791,9 +796,12 @@ void PerfTests::StressTestStackAlloc()
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 64; ++i)
 		{
-			stackAllocator.Alloc(sizeof(int));
-			stackAllocator.Reset();
+			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
 		}
+		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
@@ -803,9 +811,12 @@ void PerfTests::StressTestStackAlloc()
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 256; ++i)
 		{
-			stackAllocator.Alloc(sizeof(int));
-			stackAllocator.Reset();
+			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
 		}
+		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
@@ -815,9 +826,12 @@ void PerfTests::StressTestStackAlloc()
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 512; ++i)
 		{
-			stackAllocator.Alloc(sizeof(int));
-			stackAllocator.Reset();
+			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
 		}
+		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
@@ -827,9 +841,12 @@ void PerfTests::StressTestStackAlloc()
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 1024; ++i)
 		{
-			stackAllocator.Alloc(sizeof(int));
-			stackAllocator.Reset();
+			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
 		}
+		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
@@ -837,7 +854,6 @@ void PerfTests::StressTestStackAlloc()
 
 void PerfTests::StressTestBuddyAlloc()
 {
-
 	{ // Testing 16 allocations
 		BuddyAllocator buddyAllocator;
 
@@ -845,6 +861,10 @@ void PerfTests::StressTestBuddyAlloc()
 		for (int i = 0; i < 16; ++i)
 		{
 			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			buddyAllocator.Free(test);
 		}
 
@@ -859,6 +879,10 @@ void PerfTests::StressTestBuddyAlloc()
 		for (int i = 0; i < 64; ++i)
 		{
 			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			buddyAllocator.Free(test);
 		}
 
@@ -873,6 +897,10 @@ void PerfTests::StressTestBuddyAlloc()
 		for (int i = 0; i < 256; ++i)
 		{
 			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			buddyAllocator.Free(test);
 		}
 
@@ -887,6 +915,10 @@ void PerfTests::StressTestBuddyAlloc()
 		for (int i = 0; i < 512; ++i)
 		{
 			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			buddyAllocator.Free(test);
 		}
 
@@ -902,6 +934,10 @@ void PerfTests::StressTestBuddyAlloc()
 		for (int i = 0; i < 1024; ++i)
 		{
 			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			buddyAllocator.Free(test);
 		}
 
@@ -917,6 +953,10 @@ void PerfTests::StressTestNew()
 		for (int i = 0; i < 16; ++i)
 		{
 			int* test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
@@ -928,6 +968,10 @@ void PerfTests::StressTestNew()
 		for (int i = 0; i < 64; ++i)
 		{
 			int* test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
@@ -939,6 +983,10 @@ void PerfTests::StressTestNew()
 		for (int i = 0; i < 256; ++i)
 		{
 			int* test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
@@ -950,6 +998,10 @@ void PerfTests::StressTestNew()
 		for (int i = 0; i < 512; ++i)
 		{
 			int* test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
@@ -961,6 +1013,10 @@ void PerfTests::StressTestNew()
 		for (int i = 0; i < 1024; ++i)
 		{
 			int* test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
