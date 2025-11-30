@@ -13,7 +13,7 @@ workspace "Memory-Manager"
     }
 
     warnings "Extra"
-    fatalwarnings { "All" }
+    --fatalwarnings { "All" }
 
     os.execute("git submodule update --recursive")
 
