@@ -7,6 +7,8 @@
 #include <iostream>
 #include <stack>
 
+//#define DBG_STACK_TRACK_SIZE
+
 constexpr size_t STACK_SIZE = 1 << 14;
 typedef std::unique_ptr<std::array<char, STACK_SIZE>> StorageType;
 
@@ -17,6 +19,9 @@ private:
 	size_t m_top = 0;
 #ifdef TRACY_ENABLE
 	std::stack<void*> m_dbgTrackedAllocs;
+#endif
+#ifdef DBG_STACK_TRACK_SIZE
+	std::vector<size_t> m_dbgTrackedSizes;
 #endif
 
 public:
@@ -51,6 +56,10 @@ public:
 		m_dbgTrackedAllocs.push(begin + m_top);
 #endif
 
+#ifdef DBG_STACK_TRACK_SIZE
+		m_dbgTrackedSizes.push_back(size);
+#endif
+
 		for (size_t i = 0; i < size; i++)
 		{
 			begin[m_top] = ((char*)data)[i];
@@ -71,6 +80,10 @@ public:
 			m_dbgTrackedAllocs.pop();
 		}
 #endif
+
+#ifdef DBG_STACK_TRACK_SIZE
+		m_dbgTrackedSizes.clear();
+#endif
 		m_top = 0;
 	}
 
@@ -88,4 +101,11 @@ public:
 	{
 		return STACK_SIZE;
 	}
+
+#ifdef DBG_STACK_TRACK_SIZE
+	const std::vector<size_t> &DBG_GetAllocSizes()
+	{
+		return m_dbgTrackedSizes;
+	}
+#endif
 };

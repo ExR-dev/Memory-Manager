@@ -2,7 +2,7 @@
 
 #include "MemPerfTests.hpp"
 #include "PoolAllocator.hpp"
-#include "DynamicPoolAllocator.hpp"
+#include "NonArrayPoolAllocator.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -38,10 +38,6 @@ struct TestResult
 	float allocMinTimeMs;
 	float allocMaxTimeMs;
 
-	float allocDynAvgTimeMs;
-	float allocDynMinTimeMs;
-	float allocDynMaxTimeMs;
-
 	float newAvgTimeMs;
 	float newMinTimeMs;
 	float newMaxTimeMs;
@@ -56,99 +52,14 @@ struct TestPoolParams
 	int maxSize;
 };
 
+
+
 template<typename T>
 static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
 {
 	ZoneScopedC(tracy::Color::Yellow3);
 
 	using namespace MemoryInternal;
-
-	std::vector<T *> allocs;
-	std::vector<int> currAllocs;
-
-	allocs.resize(allocCount, nullptr);
-	currAllocs.reserve(maxConcurrentAllocs);
-
-	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-
-	for (int i = 0; i < allocCount; )
-	{
-		ZoneNamedNC(allocIterZone, "Loop", tracy::Color::Gray72, true);
-
-		if (currAllocs.size() > 0)
-		{
-			// Free a random number of current allocations
-			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
-
-			for (int j = 0; j < freeCount; ++j)
-			{
-				ZoneNamedNC(freeZone, "Free", tracy::Color::Green, true);
-
-				if (currAllocs.size() <= 0)
-					break;
-
-				int currAllocIndex = rand() % currAllocs.size();
-				int freeIdx = currAllocs[currAllocIndex];
-
-				Free<T>(allocs[freeIdx]);
-
-				allocs[freeIdx] = nullptr;
-				currAllocs.erase(currAllocs.begin() + currAllocIndex);
-			}
-		}
-
-		// Allocate a random number of floats
-		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
-		for (int j = 0; j < newAllocs; ++j)
-		{
-			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
-
-			if (currAllocs.size() >= static_cast<std::size_t>(maxConcurrentAllocs))
-				break;
-
-			int allocSize = (rand() % maxAllocSize) + 1;
-			int allocIdx = -1;
-
-			// Find a free slot
-			for (int k = 0; k < allocCount; ++k)
-			{
-				if (allocs[k] == nullptr)
-				{
-					allocIdx = k;
-					break;
-				}
-			}
-
-			if (allocIdx == -1)
-				continue;
-
-			T *newAlloc = Alloc<T>(allocSize);
-
-			allocs[allocIdx] = newAlloc;
-			currAllocs.push_back(allocIdx);
-
-			++i;
-		}
-	}
-
-	// Free remaining allocations
-	for (std::size_t i = 0; i < currAllocs.size(); ++i)
-	{
-		int allocIdx = currAllocs[i];
-		Free<T>(allocs[allocIdx]);
-	}
-
-	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-
-	return std::chrono::duration<float, std::milli>(endTime - startTime).count();
-}
-
-template<typename T>
-static float StressTestPoolAllocDyn(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
-{
-	ZoneScopedC(tracy::Color::Yellow3);
-
-	using namespace MemoryInternalDynamic;
 
 	std::vector<T *> allocs;
 	std::vector<int> currAllocs;
@@ -323,20 +234,15 @@ template<typename T>
 static TestResult StressTestPool(TestPoolParams &params)
 {
 	std::vector<float> allocTimes;
-	std::vector<float> allocDynTimes;
 	std::vector<float> newTimes;
 
 	allocTimes.reserve(params.iterations);
-	allocDynTimes.reserve(params.iterations);
 	newTimes.reserve(params.iterations);
 
 	MemoryInternal::PoolAllocator<T>::Reset();
 	MemoryInternal::PoolAllocator<T>::Initialize(static_cast<size_t>(params.maxConcurrent) * params.maxSize);
 
-	MemoryInternalDynamic::DynamicPoolAllocator<T>::Reset();
-	MemoryInternalDynamic::DynamicPoolAllocator<T>::Initialize(static_cast<size_t>(params.maxConcurrent) * params.maxSize);
-
-	int seed = static_cast<int>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+	int seed = rand();
 
 	for (int i = 0; i < params.iterations; ++i)
 	{
@@ -344,9 +250,6 @@ static TestResult StressTestPool(TestPoolParams &params)
 		
 		srand(seed + i);
 		allocTimes.push_back(StressTestPoolAlloc<T>(params.allocCount, params.maxConcurrent, params.maxSize));
-		
-		srand(seed + i);
-		allocDynTimes.push_back(StressTestPoolAllocDyn<T>(params.allocCount, params.maxConcurrent, params.maxSize));
 
 		srand(seed + i);
 		newTimes.push_back(StressTestPoolNew<T>(params.allocCount, params.maxConcurrent, params.maxSize));
@@ -357,34 +260,255 @@ static TestResult StressTestPool(TestPoolParams &params)
 	for (int i = 0; i < params.iterations; ++i)
 	{
 		result.allocAvgTimeMs += allocTimes[i];
-		result.allocDynAvgTimeMs += allocDynTimes[i];
 		result.newAvgTimeMs += newTimes[i];
 
 		if (i == 0 || allocTimes[i] < result.allocMinTimeMs)
 			result.allocMinTimeMs = allocTimes[i];
-
-		if (i == 0 || allocDynTimes[i] < result.allocDynMinTimeMs)
-			result.allocDynMinTimeMs = allocDynTimes[i];
 		if (i == 0 || newTimes[i] < result.newMinTimeMs)
 			result.newMinTimeMs = newTimes[i];
 
 		if (i == 0 || allocTimes[i] > result.allocMaxTimeMs)
 			result.allocMaxTimeMs = allocTimes[i];
-		if (i == 0 || allocDynTimes[i] > result.allocDynMaxTimeMs)
-			result.allocDynMaxTimeMs = allocDynTimes[i];
 		if (i == 0 || newTimes[i] > result.newMaxTimeMs)
 			result.newMaxTimeMs = newTimes[i];
 	}
 
 	result.allocAvgTimeMs /= static_cast<float>(params.iterations);
-	result.allocDynAvgTimeMs /= static_cast<float>(params.iterations);
 	result.newAvgTimeMs /= static_cast<float>(params.iterations);
 
 	MemoryInternal::PoolAllocator<T>::Reset();
-	MemoryInternalDynamic::DynamicPoolAllocator<T>::Reset();
 
 	return result;
 }
+
+
+
+template<typename T>
+static float StressTestPoolNonArrayAlloc(int allocCount, int maxConcurrentAllocs)
+{
+	ZoneScopedC(tracy::Color::Yellow3);
+
+	using namespace MemoryInternalNonArray;
+
+	std::vector<T *> allocs;
+	std::vector<int> currAllocs;
+
+	allocs.resize(allocCount, nullptr);
+	currAllocs.reserve(maxConcurrentAllocs);
+
+	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+	for (int i = 0; i < allocCount; )
+	{
+		ZoneNamedNC(allocIterZone, "Loop", tracy::Color::Gray72, true);
+
+		if (currAllocs.size() > 0)
+		{
+			// Free a random number of current allocations
+			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+
+			for (int j = 0; j < freeCount; ++j)
+			{
+				ZoneNamedNC(freeZone, "Free", tracy::Color::Green, true);
+
+				if (currAllocs.size() <= 0)
+					break;
+
+				int currAllocIndex = rand() % currAllocs.size();
+				int freeIdx = currAllocs[currAllocIndex];
+
+				Free<T>(allocs[freeIdx]);
+
+				allocs[freeIdx] = nullptr;
+				currAllocs.erase(currAllocs.begin() + currAllocIndex);
+			}
+		}
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
+
+			if (currAllocs.size() >= static_cast<std::size_t>(maxConcurrentAllocs))
+				break;
+
+			int allocIdx = -1;
+
+			// Find a free slot
+			for (int k = 0; k < allocCount; ++k)
+			{
+				if (allocs[k] == nullptr)
+				{
+					allocIdx = k;
+					break;
+				}
+			}
+
+			if (allocIdx == -1)
+				continue;
+
+			T *newAlloc = Alloc<T>();
+
+			allocs[allocIdx] = newAlloc;
+			currAllocs.push_back(allocIdx);
+
+			++i;
+		}
+	}
+
+	// Free remaining allocations
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
+	{
+		int allocIdx = currAllocs[i];
+		Free<T>(allocs[allocIdx]);
+	}
+
+	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+
+	return std::chrono::duration<float, std::milli>(endTime - startTime).count();
+}
+
+template<typename T>
+static float StressTestPoolNonArrayNew(int allocCount, int maxConcurrentAllocs)
+{
+	ZoneScopedC(tracy::Color::Blue3);
+
+	std::vector<T *> allocs;
+	std::vector<int> currAllocs;
+
+	allocs.resize(allocCount, nullptr);
+	currAllocs.reserve(maxConcurrentAllocs);
+
+	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+	for (int i = 0; i < allocCount; )
+	{
+		ZoneNamedNC(allocIterZone, "Loop", tracy::Color::Gray16, true);
+
+		if (currAllocs.size() > 0)
+		{
+			// Free a random number of current allocations
+			int freeCount = rand() % std::max(currAllocs.size() / 5 + 1, 2ull);
+
+			for (int j = 0; j < freeCount; ++j)
+			{
+				ZoneNamedNC(freeZone, "Free", tracy::Color::Green, true);
+
+				if (currAllocs.size() <= 0)
+					break;
+
+				int currAllocIndex = rand() % currAllocs.size();
+				int freeIdx = currAllocs[currAllocIndex];
+
+				TracyFreeN(allocs[freeIdx], "New");
+				delete[] allocs[freeIdx];
+
+				allocs[freeIdx] = nullptr;
+				currAllocs.erase(currAllocs.begin() + currAllocIndex);
+			}
+		}
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % std::max((maxConcurrentAllocs - currAllocs.size()) / 4 + 1, 2ull);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
+
+			if (currAllocs.size() >= static_cast<std::size_t>(maxConcurrentAllocs))
+				break;
+
+			int allocIdx = -1;
+
+			// Find a free slot
+			for (int k = 0; k < allocCount; ++k)
+			{
+				if (allocs[k] == nullptr)
+				{
+					allocIdx = k;
+					break;
+				}
+			}
+
+			if (allocIdx == -1)
+				continue;
+
+			T *newAlloc = new T();
+			TracyAllocN(newAlloc, sizeof(T), "New");
+
+			allocs[allocIdx] = newAlloc;
+			currAllocs.push_back(allocIdx);
+
+			++i;
+		}
+	}
+
+	// Free remaining allocations
+	for (std::size_t i = 0; i < currAllocs.size(); ++i)
+	{
+		int allocIdx = currAllocs[i];
+
+		TracyFreeN(allocs[allocIdx], "New");
+		delete[] allocs[allocIdx];
+	}
+
+	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+
+	return std::chrono::duration<float, std::milli>(endTime - startTime).count();
+}
+
+template<typename T>
+static TestResult StressTestPoolNonArray(TestPoolParams &params)
+{
+	std::vector<float> allocTimes;
+	std::vector<float> newTimes;
+
+	allocTimes.reserve(params.iterations);
+	newTimes.reserve(params.iterations);
+
+	MemoryInternalNonArray::NonArrayPoolAllocator<T>::Reset();
+	MemoryInternalNonArray::NonArrayPoolAllocator<T>::Initialize(static_cast<size_t>(params.maxConcurrent));
+
+	int seed = rand();
+
+	for (int i = 0; i < params.iterations; ++i)
+	{
+		ZoneNamedNC(perfTestIterLoopZone, "Iteration Loop", tracy::Color::Aquamarine3, true);
+		
+		srand(seed + i);
+		allocTimes.push_back(StressTestPoolNonArrayAlloc<T>(params.allocCount, params.maxConcurrent));
+
+		srand(seed + i);
+		newTimes.push_back(StressTestPoolNonArrayNew<T>(params.allocCount, params.maxConcurrent));
+	}
+
+	TestResult result{};
+
+	for (int i = 0; i < params.iterations; ++i)
+	{
+		result.allocAvgTimeMs += allocTimes[i];
+		result.newAvgTimeMs += newTimes[i];
+
+		if (i == 0 || allocTimes[i] < result.allocMinTimeMs)
+			result.allocMinTimeMs = allocTimes[i];
+		if (i == 0 || newTimes[i] < result.newMinTimeMs)
+			result.newMinTimeMs = newTimes[i];
+
+		if (i == 0 || allocTimes[i] > result.allocMaxTimeMs)
+			result.allocMaxTimeMs = allocTimes[i];
+		if (i == 0 || newTimes[i] > result.newMaxTimeMs)
+			result.newMaxTimeMs = newTimes[i];
+	}
+
+	result.allocAvgTimeMs /= static_cast<float>(params.iterations);
+	result.newAvgTimeMs /= static_cast<float>(params.iterations);
+
+	MemoryInternalNonArray::NonArrayPoolAllocator<T>::Reset();
+
+	return result;
+}
+
+
 
 static size_t GetTypeSizeByName(const std::string &typeName)
 {
@@ -403,37 +527,49 @@ static size_t GetTypeSizeByName(const std::string &typeName)
 	return 0;
 }
 
-
 void PerfTests::RunPoolPerfTests()
 {
 	ZoneScopedC(tracy::Color::Purple2);
 
 
+	
 	std::vector<std::string> typeNames = {
+		//"TestStructSmall"
+		//"TestStructMed"
+		
+		"char",
+		"int",
+		"size_t",
 		"TestStructSmall",
 		"TestStructMed",
 		"TestStructLarge",
 	};
 
 	std::vector<int> maxConcurrent = {
-		1 << 0,
-		1 << 1,
-		1 << 2,
-		1 << 3,
-		1 << 4,
-		1 << 5,
-		1 << 6,
-		1 << 7,
-		1 << 8,
-		1 << 9,
-		1 << 10,
-		1 << 11,
-		1 << 12,
-		1 << 13,
-		1 << 14
+		1 << 6
+
+		//1 << 0,
+		//1 << 1,
+		//1 << 2,
+		//1 << 3,
+		//1 << 4,
+		//1 << 5,
+		//1 << 6,
+		//1 << 7,
+		//1 << 8,
+		//1 << 9,
+		//1 << 10,
+		//1 << 11,
+		//1 << 12,
+		//1 << 13,
+		//1 << 14,
+		//1 << 15,
+		//1 << 16
 	};
 
 	std::vector<int> maxAllocSizes = {
+		//1 << 6
+
 		1 << 0,
 		1 << 1,
 		1 << 2,
@@ -448,12 +584,15 @@ void PerfTests::RunPoolPerfTests()
 		1 << 11,
 		1 << 12,
 		1 << 13,
-		1 << 14
+		1 << 14,
+		1 << 15,
+		1 << 16
 	};
 
-	size_t maxMemUsage = 1ull << 24; // 16 MB
-
-
+	size_t maxMemUsage = 1ull << 28; 
+	size_t maxItemCount = 1ull << 18;
+	
+	
 	std::vector<TestPoolParams> tests = {
 		// TypeName,			Iterations, AllocCount, MaxConcurrent,	MaxAllocSize
 		/*{ "TestStructSmall",	16,			5000,		1 << 3,			1 << 3	},
@@ -493,7 +632,7 @@ void PerfTests::RunPoolPerfTests()
 		{ "size_t",				16,			3000,		1 << 9,			1 << 6	},*/
 	};
 
-
+	
 	for (size_t i = 0; i < typeNames.size(); i++)
 	{
 		std::string &typeName = typeNames[i];
@@ -506,23 +645,30 @@ void PerfTests::RunPoolPerfTests()
 			{
 				int allocSize = maxAllocSizes[k];
 
-				size_t totalMemUsage = static_cast<size_t>(allocSize) * concurrent * GetTypeSizeByName(typeName);
+				size_t totalItemCount = static_cast<size_t>(allocSize) * concurrent;
+
+				if (totalItemCount > maxItemCount)
+					continue; // Skip tests that exceed max item count
+
+				size_t totalMemUsage = totalItemCount * GetTypeSizeByName(typeName);
 
 				if (totalMemUsage > maxMemUsage)
 					continue; // Skip tests that exceed max memory usage
 
 				tests.push_back({ 
 					typeName, 
-					8, 
-					5000, 
-					(concurrent), 
-					(allocSize)
+					16, 
+					1000, 
+					concurrent, 
+					allocSize
 				});
 			}
 		}
 	}
+	
 
-
+	srand(static_cast<int>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+	//srand(1);
 
 	std::vector<TestResult> results;
 	results.reserve(tests.size());
@@ -546,6 +692,19 @@ void PerfTests::RunPoolPerfTests()
 			results.push_back(StressTestPool<int>(test));
 		else if (test.typeName == "size_t")
 			results.push_back(StressTestPool<size_t>(test));
+
+		/*if (test.typeName == "TestStructSmall")
+			results.push_back(StressTestPoolNonArray<TestStructSmall>(test));
+		else if (test.typeName == "TestStructMed")
+			results.push_back(StressTestPoolNonArray<TestStructMed>(test));
+		else if (test.typeName == "TestStructLarge")
+			results.push_back(StressTestPoolNonArray<TestStructLarge>(test));
+		else if (test.typeName == "char")
+			results.push_back(StressTestPoolNonArray<char>(test));
+		else if (test.typeName == "int")
+			results.push_back(StressTestPoolNonArray<int>(test));
+		else if (test.typeName == "size_t")
+			results.push_back(StressTestPoolNonArray<size_t>(test));*/
 	}
 
 	std::cout << "\nPool Allocator Performance Tests\n";
@@ -561,15 +720,12 @@ void PerfTests::RunPoolPerfTests()
 		std::cout << "\t            \tAvg\n";
 
 		std::cout << std::format("\tPool Alloc: \t{:2.3f}\n", result.allocAvgTimeMs);
-		std::cout << std::format("\tDyna Alloc: \t{:2.3f}\n", result.allocDynAvgTimeMs);
 		std::cout << std::format("\tNew/Delete: \t{:2.3f}\n", result.newAvgTimeMs);
 
 		std::cout << std::format("\tDifference: \t{:2.3f}\n", 			
 			result.newAvgTimeMs - result.allocAvgTimeMs);
-		std::cout << std::format("\tSpeed Pool:    \t{:2.3f}\n", 			
+		std::cout << std::format("\tSpeedup:    \t{:2.3f}\n", 			
 			result.newAvgTimeMs / result.allocAvgTimeMs);
-		std::cout << std::format("\tSpeed Dyna:    \t{:2.3f}\n", 			
-			result.allocAvgTimeMs / result.allocDynAvgTimeMs);
 
 		std::cout << "\n";
 	}
@@ -578,8 +734,11 @@ void PerfTests::RunPoolPerfTests()
 	{
 		std::ofstream resultFile("PoolAllocPerfResults.txt");
 
-		resultFile << "Pool Allocator Performance Tests\n";
-		resultFile << "Type Size\tMax Concurrent Allocs\tMax Alloc Size\tPool\tPool Dyn\tNew\n";
+		resultFile << 
+			"Type Size\tMax Concurrent Allocs\tMax Alloc Size" 
+			"\tPool" 
+			"\tNew" 
+			"\n";
 
 		for (std::size_t j = 0; j < results.size(); ++j)
 		{
@@ -587,9 +746,13 @@ void PerfTests::RunPoolPerfTests()
 			TestResult &result = results[j];
 
 			resultFile << std::format(
-				"{}\t{}\t{}\t{}\t{}\t{}\n",
+				"{}\t{}\t{}" 
+				"\t{}" 
+				"\t{}" 
+				"\n",
 				GetTypeSizeByName(test.typeName), test.maxConcurrent, test.maxSize,
-				result.allocAvgTimeMs, result.allocDynAvgTimeMs, result.newAvgTimeMs
+				result.allocAvgTimeMs,
+				result.newAvgTimeMs
 			);
 
 		}
