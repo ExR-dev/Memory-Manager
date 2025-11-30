@@ -29,7 +29,6 @@ int main()
 
     ZoneScopedC(tracy::Color::Coral3);
 
-    StackAllocator stackAllocator;
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         printf("Error: SDL_Init(): %s\n", SDL_GetError());
@@ -108,6 +107,17 @@ int main()
 	buddyAllocator.Free(p6);
 	buddyAllocator.Free(p7);
 	buddyAllocator.Free(p8);
+
+
+    StackAllocator stackAllocator;
+
+	void* dataPtr1 = stackAllocator.Alloc(1);
+	void* dataPtr2 = stackAllocator.Alloc(2);
+	void* dataPtr3 = stackAllocator.Alloc(3);
+
+	std::cout << "Stack Allocator allocated 1 bytes at address: " << dataPtr1 << "\n";
+	std::cout << "Stack Allocator allocated 2 bytes at address: " << dataPtr2 << "\n";
+	std::cout << "Stack Allocator allocated 3 bytes at address: " << dataPtr3 << "\n";
     
     FrameMark;
     

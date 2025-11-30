@@ -52,7 +52,7 @@ public:
 		m_dbgTrackedSizes.push_back(size);
 #endif
 
-		return static_cast<void*>(ptr);
+		return ptr;
 	}
 
 	void Reset()
