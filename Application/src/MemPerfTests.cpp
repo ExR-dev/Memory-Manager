@@ -514,6 +514,140 @@ static TestResult StressTestPoolNonArray(TestPoolParams &params)
 
 
 
+template<typename T>
+static float StressTestStackAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
+{
+	ZoneScopedC(tracy::Color::Yellow3);
+
+	std::vector<T *> allocs;
+	allocs.reserve(maxConcurrentAllocs);
+
+	StackAllocator stack;
+
+	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+	for (int i = 0; i < allocCount; )
+	{
+		ZoneNamedNC(allocIterZone, "Loop", tracy::Color::Gray72, true);
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % std::max(maxConcurrentAllocs + 1ull, 2ull);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
+
+			size_t allocSize = sizeof(T) * ((static_cast<size_t>(rand() % maxAllocSize)) + 1);
+			
+			T *newAlloc = (T*)stack.Alloc(allocSize);
+			allocs.push_back(newAlloc);
+
+			++i;
+			if (i >= allocCount)
+				break;
+		}
+
+		stack.Reset();
+		allocs.clear();
+	}
+
+	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+
+	return std::chrono::duration<float, std::milli>(endTime - startTime).count();
+}
+
+template<typename T>
+static float StressTestStackNew(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
+{
+	ZoneScopedC(tracy::Color::Blue3);
+
+	std::vector<T*> allocs;
+	allocs.reserve(maxConcurrentAllocs);
+
+	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+
+	for (int i = 0; i < allocCount; )
+	{
+		ZoneNamedNC(allocIterZone, "Loop", tracy::Color::Gray16, true);
+
+		// Allocate a random number of floats
+		int newAllocs = rand() % std::max(maxConcurrentAllocs + 1ull, 2ull);
+		for (int j = 0; j < newAllocs; ++j)
+		{
+			ZoneNamedNC(allocZone, "Allocate", tracy::Color::Red, true);
+
+			size_t allocSize = static_cast<size_t>(rand() % maxAllocSize) + 1;
+
+			T *newAlloc = new T[allocSize];
+
+			allocs.push_back(newAlloc);
+			TracyAllocN(newAlloc, allocSize * sizeof(T), "New");
+
+			++i;
+			if (i >= allocCount)
+				break;
+		}
+
+		for (size_t j = 0; j < allocs.size(); j++)
+		{
+			TracyFreeN(allocs[j], "New");
+			delete[] allocs[j];
+		}
+		allocs.clear();
+	}
+
+	std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+
+	return std::chrono::duration<float, std::milli>(endTime - startTime).count();
+}
+
+template<typename T>
+static TestResult StressTestStack(TestPoolParams &params)
+{
+	std::vector<float> allocTimes;
+	std::vector<float> newTimes;
+
+	allocTimes.reserve(params.iterations);
+	newTimes.reserve(params.iterations);
+
+	int seed = rand();
+
+	for (int i = 0; i < params.iterations; ++i)
+	{
+		ZoneNamedNC(perfTestIterLoopZone, "Iteration Loop", tracy::Color::Aquamarine3, true);
+
+		srand(seed + i);
+		allocTimes.push_back(StressTestStackAlloc<T>(params.allocCount, params.maxConcurrent, params.maxSize));
+
+		srand(seed + i);
+		newTimes.push_back(StressTestStackNew<T>(params.allocCount, params.maxConcurrent, params.maxSize));
+	}
+
+	TestResult result{};
+
+	for (int i = 0; i < params.iterations; ++i)
+	{
+		result.allocAvgTimeMs += allocTimes[i];
+		result.newAvgTimeMs += newTimes[i];
+
+		if (i == 0 || allocTimes[i] < result.allocMinTimeMs)
+			result.allocMinTimeMs = allocTimes[i];
+		if (i == 0 || newTimes[i] < result.newMinTimeMs)
+			result.newMinTimeMs = newTimes[i];
+
+		if (i == 0 || allocTimes[i] > result.allocMaxTimeMs)
+			result.allocMaxTimeMs = allocTimes[i];
+		if (i == 0 || newTimes[i] > result.newMaxTimeMs)
+			result.newMaxTimeMs = newTimes[i];
+	}
+
+	result.allocAvgTimeMs /= static_cast<float>(params.iterations);
+	result.newAvgTimeMs /= static_cast<float>(params.iterations);
+
+	return result;
+}
+
+
+
 static size_t GetTypeSizeByName(const std::string &typeName)
 {
 	if (typeName == "TestStructSmall")
@@ -771,72 +905,201 @@ void PerfTests::RunPoolPerfTests()
 	}
 }
 
+void PerfTests::RunStackPerfTests1()
+{
+	ZoneScopedC(tracy::Color::Purple2);
+
+
+	std::vector<std::string> typeNames = {
+		//"char",
+		//"int",
+		//"size_t",
+		"TestStructSmall",
+		//"TestStructMed",
+		//"TestStructLarge",
+	};
+
+	std::vector<int> maxConcurrent = {
+		//1 << 6
+
+		1 << 0,
+		1 << 1,
+		1 << 2,
+		1 << 3,
+		1 << 4,
+		1 << 5,
+		1 << 6,
+		1 << 7,
+		1 << 8,
+		1 << 9,
+		1 << 10,
+		1 << 11,
+		1 << 12,
+		1 << 13,
+		1 << 14,
+		1 << 15,
+		1 << 16
+	};
+
+	std::vector<int> maxAllocSizes = {
+		1 << 6
+
+		//1 << 0,
+		//1 << 1,
+		//1 << 2,
+		//1 << 3,
+		//1 << 4,
+		//1 << 5,
+		//1 << 6,
+		//1 << 7,
+		//1 << 8,
+		//1 << 9,
+		//1 << 10,
+		//1 << 11,
+		//1 << 12,
+		//1 << 13,
+		//1 << 14,
+		//1 << 15,
+		//1 << 16
+	};
+
+	size_t maxItemCount = 1ull << 18;
+
+
+	std::vector<TestPoolParams> tests;
+
+
+	for (size_t i = 0; i < typeNames.size(); i++)
+	{
+		std::string &typeName = typeNames[i];
+
+		for (size_t j = 0; j < maxConcurrent.size(); j++)
+		{
+			int concurrent = maxConcurrent[j];
+
+			for (size_t k = 0; k < maxAllocSizes.size(); k++)
+			{
+				int allocSize = maxAllocSizes[k];
+
+				size_t totalItemCount = static_cast<size_t>(allocSize) * concurrent;
+
+				if (totalItemCount > maxItemCount)
+					continue; // Skip tests that exceed max item count
+
+				tests.push_back({
+					typeName,
+					16,
+					1000,
+					concurrent,
+					allocSize
+				});
+			}
+		}
+	}
+
+
+	srand(static_cast<int>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
+
+	std::vector<TestResult> results;
+	results.reserve(tests.size());
+
+	for (std::size_t i = 0; i < tests.size(); ++i)
+	{
+		ZoneNamedNC(allocTestsZone, "Test", tracy::Color::Burlywood2, true);
+		ZoneValue(i);
+
+		TestPoolParams &test = tests[i];
+
+		if (test.typeName == "TestStructSmall")
+			results.push_back(StressTestStack<TestStructSmall>(test));
+		else if (test.typeName == "TestStructMed")
+			results.push_back(StressTestStack<TestStructMed>(test));
+		else if (test.typeName == "TestStructLarge")
+			results.push_back(StressTestStack<TestStructLarge>(test));
+		else if (test.typeName == "char")
+			results.push_back(StressTestStack<char>(test));
+		else if (test.typeName == "int")
+			results.push_back(StressTestStack<int>(test));
+		else if (test.typeName == "size_t")
+			results.push_back(StressTestStack<size_t>(test));
+	}
+
+	std::cout << "\nStack Allocator Performance Tests\n";
+	std::cout << "Time measurements (ms)\n";
+
+	for (std::size_t j = 0; j < results.size(); ++j)
+	{
+		TestPoolParams &test = tests[j];
+		TestResult &result = results[j];
+
+		std::cout << std::format("Params: Type={}, Iterations={}, AllocCount={}, MaxConcurrent={}, MaxAllocSize={}\n",
+			test.typeName, test.iterations, test.allocCount, test.maxConcurrent, test.maxSize);
+		std::cout << "\t            \tAvg\n";
+
+		std::cout << std::format("\tStack Alloc: \t{:2.3f}\n", result.allocAvgTimeMs);
+		std::cout << std::format("\tNew/Delete:  \t{:2.3f}\n", result.newAvgTimeMs);
+
+		std::cout << std::format("\tDifference:  \t{:2.3f}\n",
+			result.newAvgTimeMs - result.allocAvgTimeMs);
+		std::cout << std::format("\tSpeedup:     \t{:2.3f}\n",
+			result.newAvgTimeMs / result.allocAvgTimeMs);
+
+		std::cout << "\n";
+	}
+
+	// Write results to file
+	{
+		std::ofstream resultFile("StackAllocPerfResults.txt");
+
+		resultFile <<
+			"Type Size\tMax Concurrent Allocs\tMax Alloc Size"
+			"\tStack"
+			"\tNew"
+			"\n";
+
+		for (std::size_t j = 0; j < results.size(); ++j)
+		{
+			TestPoolParams &test = tests[j];
+			TestResult &result = results[j];
+
+			resultFile << std::format(
+				"{}\t{}\t{}"
+				"\t{}"
+				"\t{}"
+				"\n",
+				GetTypeSizeByName(test.typeName), test.maxConcurrent, test.maxSize,
+				result.allocAvgTimeMs,
+				result.newAvgTimeMs
+			);
+
+		}
+
+		resultFile << "\n";
+
+		resultFile.close();
+	}
+}
+
+
 
 void PerfTests::StressTestStackAlloc()
 {
-	{ // Testing 16 allocations
+	{ // Testing 1024 allocations with char
 		StackAllocator stackAllocator;
-
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 16; ++i)
+		for (int i = 0; i < 1024; ++i)
 		{
-			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
+			char *test = static_cast<char *>(stackAllocator.Alloc(sizeof(char)));
 
 			// Do something with the allocated memory to prevent optimization
 			trashVar += reinterpret_cast<size_t>(test);
 		}
 		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Stack 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+		std::cout << "Stack 1024 " << sizeof(char) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
 
-	{ // Testing 64 allocations
-		StackAllocator stackAllocator;
-
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 64; ++i)
-		{
-			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-		}
-		stackAllocator.Reset();
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Stack 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 256 allocations
-		StackAllocator stackAllocator;
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 256; ++i)
-		{
-			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-		}
-		stackAllocator.Reset();
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Stack 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 512 allocations
-		StackAllocator stackAllocator;
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 512; ++i)
-		{
-			int *test = static_cast<int *>(stackAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-		}
-		stackAllocator.Reset();
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Stack 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 1024 allocations
+	{ // Testing 1024 allocations with int
 		StackAllocator stackAllocator;
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 1024; ++i)
@@ -848,92 +1111,79 @@ void PerfTests::StressTestStackAlloc()
 		}
 		stackAllocator.Reset();
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Stack 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+		std::cout << "Stack 1024 " << sizeof(int) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with size_t
+		StackAllocator stackAllocator;
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			size_t *test = static_cast<size_t *>(stackAllocator.Alloc(sizeof(size_t)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+		}
+		stackAllocator.Reset();
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 1024 " << sizeof(size_t) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructSmall
+		StackAllocator stackAllocator;
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructSmall *test = static_cast<TestStructSmall *>(stackAllocator.Alloc(sizeof(TestStructSmall)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+		}
+		stackAllocator.Reset();
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 1024 " << sizeof(TestStructSmall) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructMed
+		StackAllocator stackAllocator;
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructMed *test = static_cast<TestStructMed *>(stackAllocator.Alloc(sizeof(TestStructMed)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+		}
+		stackAllocator.Reset();
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 1024 " << sizeof(TestStructMed) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructLarge
+		StackAllocator stackAllocator;
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructLarge *test = static_cast<TestStructLarge *>(stackAllocator.Alloc(sizeof(TestStructLarge)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+		}
+		stackAllocator.Reset();
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Stack 1024 " << sizeof(TestStructLarge) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
 }
 
 void PerfTests::StressTestBuddyAlloc()
 {
-	{ // Testing 16 allocations
-		BuddyAllocator buddyAllocator;
-
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 16; ++i)
-		{
-			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			buddyAllocator.Free(test);
-		}
-
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Buddy 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 64 allocations
-		BuddyAllocator buddyAllocator;
-
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 64; ++i)
-		{
-			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			buddyAllocator.Free(test);
-		}
-
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Buddy 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 256 allocations
-		BuddyAllocator buddyAllocator;
-
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 256; ++i)
-		{
-			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			buddyAllocator.Free(test);
-		}
-
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Buddy 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 512 allocations
-		BuddyAllocator buddyAllocator;
-
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 512; ++i)
-		{
-			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			buddyAllocator.Free(test);
-		}
-
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Buddy 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{
-		// Testing 1024 allocations
+	{ // Testing 1024 allocations with char
 		BuddyAllocator buddyAllocator;
 
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 1024; ++i)
 		{
-			int* test = static_cast<int*>(buddyAllocator.Alloc(sizeof(int)));
+			char* test = static_cast<char *>(buddyAllocator.Alloc(sizeof(char)));
 
 			// Do something with the allocated memory to prevent optimization
 			trashVar += reinterpret_cast<size_t>(test);
@@ -942,77 +1192,107 @@ void PerfTests::StressTestBuddyAlloc()
 		}
 
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "Buddy 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+		std::cout << "Buddy 1024 " << sizeof(char) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with int
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			int *test = static_cast<int *>(buddyAllocator.Alloc(sizeof(int)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024 " << sizeof(int) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with size_t
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			size_t *test = static_cast<size_t *>(buddyAllocator.Alloc(sizeof(size_t)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024 " << sizeof(size_t) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructSmall
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructSmall *test = static_cast<TestStructSmall *>(buddyAllocator.Alloc(sizeof(TestStructSmall)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024 " << sizeof(TestStructSmall) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructMed
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructMed *test = static_cast<TestStructMed *>(buddyAllocator.Alloc(sizeof(TestStructMed)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024 " << sizeof(TestStructMed) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructLarge
+		BuddyAllocator buddyAllocator;
+
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructLarge *test = static_cast<TestStructLarge *>(buddyAllocator.Alloc(sizeof(TestStructLarge)));
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			buddyAllocator.Free(test);
+		}
+
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "Buddy 1024 " << sizeof(TestStructLarge) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
 }
 
 void PerfTests::StressTestNew()
 {
-	{ // Testing 16 allocations
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 16; ++i)
-		{
-			int* test = new int;
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			delete test;
-		}
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "New 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 64 allocations
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 64; ++i)
-		{
-			int* test = new int;
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			delete test;
-		}
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "New 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 256 allocations
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 256; ++i)
-		{
-			int* test = new int;
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			delete test;
-		}
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "New 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 512 allocations
-		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
-		for (int i = 0; i < 512; ++i)
-		{
-			int* test = new int;
-
-			// Do something with the allocated memory to prevent optimization
-			trashVar += reinterpret_cast<size_t>(test);
-
-			delete test;
-		}
-		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "New 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
-	}
-
-	{ // Testing 1024 allocations
+	{ // Testing 1024 allocations with char
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 1024; ++i)
 		{
-			int* test = new int;
+			char *test = new char;
 
 			// Do something with the allocated memory to prevent optimization
 			trashVar += reinterpret_cast<size_t>(test);
@@ -1020,6 +1300,81 @@ void PerfTests::StressTestNew()
 			delete test;
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "New 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+		std::cout << "New 1024 " << sizeof(char) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with int
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			int *test = new int;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			delete test;
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "New 1024 " << sizeof(int) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with size_t
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			size_t *test = new size_t;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			delete test;
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "New 1024 " << sizeof(size_t) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructSmall
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructSmall * test = new TestStructSmall;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			delete test;
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "New 1024 " << sizeof(TestStructSmall) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructMed
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructMed *test = new TestStructMed;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			delete test;
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "New 1024 " << sizeof(TestStructMed) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
+	}
+
+	{ // Testing 1024 allocations with TestStructLarge
+		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		for (int i = 0; i < 1024; ++i)
+		{
+			TestStructLarge * test = new TestStructLarge;
+
+			// Do something with the allocated memory to prevent optimization
+			trashVar += reinterpret_cast<size_t>(test);
+
+			delete test;
+		}
+		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
+		std::cout << "New 1024 " << sizeof(TestStructLarge) << ": " << std::chrono::duration<float, std::milli>(endTime - startTime).count() << "\n";
 	}
 }

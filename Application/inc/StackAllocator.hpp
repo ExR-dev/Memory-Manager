@@ -9,7 +9,7 @@
 
 //#define DBG_STACK_TRACK_SIZE
 
-constexpr size_t STACK_SIZE = 1 << 14;
+constexpr size_t STACK_SIZE = 1 << 28;
 typedef std::unique_ptr<std::array<char, STACK_SIZE>> StorageType;
 
 class StackAllocator
@@ -29,7 +29,7 @@ public:
 	{
 		m_stack = std::make_unique<std::array<char, STACK_SIZE>>();
 
-		*(m_stack.get()) = {};
+		//*(m_stack.get()) = {};
 	}
 
 	void* Alloc(size_t size)

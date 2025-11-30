@@ -170,10 +170,17 @@ int main()
             ImGui::SameLine();
             ImGui::Text("counter = %d", counter);
 
+
             if (ImGui::Button("Run Pool Performance Tests"))
             {
                 PerfTests::RunPoolPerfTests();
             }
+
+            if (ImGui::Button("Run Stack1 Performance Tests"))
+            {
+                PerfTests::RunStackPerfTests1();
+            }
+
 
             if (ImGui::Button("Run New Performance Tests"))
             {
