@@ -173,7 +173,22 @@ int main()
             if (ImGui::Button("Run Pool Performance Tests"))
             {
                 PerfTests::RunPoolPerfTests();
-			}
+            }
+
+            if (ImGui::Button("Run New Performance Tests"))
+            {
+                PerfTests::StressTestNew();
+            }
+
+            if (ImGui::Button("Run Buddy Performance Tests"))
+            {
+                PerfTests::StressTestBuddyAlloc();
+            }
+
+            if (ImGui::Button("Run Stack Performance Tests"))
+            {
+                PerfTests::StressTestStackAlloc();
+            }
 
 			if (ImGui::TreeNode("Buddy Allocator Visualizer"))
 			{
