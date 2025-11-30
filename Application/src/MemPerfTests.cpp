@@ -936,9 +936,7 @@ void PerfTests::RunStackPerfTests1()
 		1 << 11,
 		1 << 12,
 		1 << 13,
-		1 << 14,
-		1 << 15,
-		1 << 16
+		1 << 14
 	};
 
 	std::vector<int> maxAllocSizes = {
@@ -958,9 +956,7 @@ void PerfTests::RunStackPerfTests1()
 		//1 << 11,
 		//1 << 12,
 		//1 << 13,
-		//1 << 14,
-		//1 << 15,
-		//1 << 16
+		//1 << 14
 	};
 
 	size_t maxItemCount = 1ull << 18;
