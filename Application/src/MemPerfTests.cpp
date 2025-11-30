@@ -769,69 +769,68 @@ void PerfTests::RunPoolPerfTests()
 
 static void StressTestStackAlloc()
 {
-	StackAllocator stackAllocator;
-	int testInt = 0;
 
 	{ // Testing 16 allocations
+		StackAllocator stackAllocator;
 
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 16; ++i)
 		{
-			stackAllocator.Push(&testInt, sizeof(testInt));
+			stackAllocator.Alloc(sizeof(int));
+			stackAllocator.Reset();
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 16: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
 
-	stackAllocator.Reset();
-
 	{ // Testing 64 allocations
+		StackAllocator stackAllocator;
+
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 64; ++i)
 		{
-			stackAllocator.Push(&testInt, sizeof(testInt));
+			stackAllocator.Alloc(sizeof(int));
+			stackAllocator.Reset();
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 64: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
 
-	stackAllocator.Reset();
-
 	{ // Testing 256 allocations
+		StackAllocator stackAllocator;
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 256; ++i)
 		{
-			stackAllocator.Push(&testInt, sizeof(testInt));
+			stackAllocator.Alloc(sizeof(int));
+			stackAllocator.Reset();
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 256: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
 
-	stackAllocator.Reset();
-
 	{ // Testing 512 allocations
+		StackAllocator stackAllocator;
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 512; ++i)
 		{
-			stackAllocator.Push(&testInt, sizeof(testInt));
+			stackAllocator.Alloc(sizeof(int));
+			stackAllocator.Reset();
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 512: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
 
-	stackAllocator.Reset();
-
 	{ // Testing 1024 allocations
+		StackAllocator stackAllocator;
 		std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
 		for (int i = 0; i < 1024; ++i)
 		{
-			stackAllocator.Push(&testInt, sizeof(testInt));
+			stackAllocator.Alloc(sizeof(int));
+			stackAllocator.Reset();
 		}
 		std::chrono::high_resolution_clock::time_point endTime = std::chrono::high_resolution_clock::now();
 		std::cout << "Stack 1024: " << std::chrono::duration<float, std::milli>(endTime - startTime).count();
 	}
-
-	stackAllocator.Reset();
 }
 
 static void StressTestBuddyAlloc()
