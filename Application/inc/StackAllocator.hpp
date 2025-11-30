@@ -28,6 +28,7 @@ public:
 	StackAllocator()
 	{
 		m_stack = std::make_unique<std::array<char, STACK_SIZE>>();
+
 		*(m_stack.get()) = {};
 	}
 

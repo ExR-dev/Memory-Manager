@@ -1,4 +1,5 @@
 project "Application"
+
     kind "ConsoleApp"
     location(rootPath .. "/Generated")
 
