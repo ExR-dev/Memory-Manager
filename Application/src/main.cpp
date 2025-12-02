@@ -375,9 +375,10 @@ int main()
 
 				PoolAllocator<char>::Initialize(4096);
 
-				auto &pageStorage = PoolAllocator<char>::DBG_GetPageStorage();
-                auto &freeRegions = PoolAllocator<char>::DBG_GetFreeRegions();
+				auto pageStorage = PoolAllocator<char>::DBG_GetPageStorage();
+                auto freeRegions = PoolAllocator<char>::DBG_GetFreeRegions();
                 auto freeRegionRoot = PoolAllocator<char>::DBG_GetFreeRegionRoot();
+                auto maxCount = PoolAllocator<char>::DBG_GetMaxCount();
 
 				static std::vector<PoolPtr<char>> allocations;
 
@@ -388,7 +389,7 @@ int main()
                     ImGui::SliderFloat("##BlockWidth", &width, 100.0f, 1200.0f, "%.1f");
                     ImGui::SliderFloat("##BlockHeight", &height, 10.0f, 100.0f, "%.1f");
 
-					size_t totalMemory = pageStorage.size();
+					size_t totalMemory = (size_t)maxCount;
 
                     // Draw allocated blocks
                     ImDrawList *drawList = ImGui::GetWindowDrawList();
@@ -432,7 +433,7 @@ int main()
                 else
                 {
                     static int allocSize = 256;
-                    ImGui::DragInt("##AllocationSize", &allocSize, 1.0f, 1, (int)pageStorage.size());
+                    ImGui::DragInt("##AllocationSize", &allocSize, 1.0f, 1, (int)maxCount);
                     ImGui::SameLine();
                     if (ImGui::Button("Make Allocation"))
                     {
@@ -449,7 +450,7 @@ int main()
 
                             PoolPtr<char> ptr = allocations[i];
 
-							IndexType offset = static_cast<IndexType>((char*)ptr - pageStorage.data());
+							IndexType offset = static_cast<IndexType>(ptr.get() - pageStorage);
                             IndexType blockSize = ptr.size();
 
                             ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, offset, blockSize);

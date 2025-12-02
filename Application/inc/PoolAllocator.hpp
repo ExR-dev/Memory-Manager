@@ -5,7 +5,6 @@
 #include "TracyWrapper.hpp"
 
 #include <vector>
-#include <memory>
 
 namespace MemoryInternal
 {
@@ -13,7 +12,6 @@ namespace MemoryInternal
 	template <typename T>
 	class PoolAllocator;
 
-	//typedef size_t IndexType;
 	typedef unsigned int IndexType;
 
 	constexpr IndexType NULL_INDEX = static_cast<IndexType>(-1);
@@ -50,11 +48,14 @@ namespace MemoryInternal
 	class PoolAllocator
 	{
 	public:
+		~PoolAllocator()
+		{
+			Reset();
+		}
+
 		struct AllocLink
 		{
-			IndexType offset;
-			IndexType size;
-			IndexType next;
+			IndexType offset, size, next;
 
 			AllocLink() : offset(0), size(0), next(NULL_INDEX) {}
 			AllocLink(IndexType off, IndexType sz)
@@ -72,18 +73,24 @@ namespace MemoryInternal
 			if (maxCount <= 0) [[unlikely]]
 				return -2; // Failure: Invalid max count
 
-			ZoneScopedXC(tracy::Color::DarkOrchid2);
+			ZoneScopedC(tracy::Color::DarkOrchid2);
+			ZoneValueX(maxCount * sizeof(T));
 
-			registry.m_pageStorage.resize(maxCount);
-			registry.m_freeRegionLinkStorage.resize(maxCount / 2 + 1);
+			IndexType freeRegionCount = maxCount / 2 + 1;
+
+			registry.m_pageStorage = new T[maxCount];
+			registry.m_freeRegionLinkStorage = new AllocLink[freeRegionCount];
 
 			registry.m_maxCount = maxCount;
+			registry.m_maxFreeRegions = freeRegionCount;
 			registry.m_initialized = true;
 			registry.m_freeRegionsRoot = 0;
-
-			std::fill(registry.m_freeRegionLinkStorage.begin(), registry.m_freeRegionLinkStorage.end(), AllocLink(0, 0));
+			registry.m_nextFreeRegion = 1;
 
 			registry.m_freeRegionLinkStorage[0] = AllocLink(0, maxCount);
+
+			for (IndexType i = 1; i < freeRegionCount; i++)
+				registry.m_freeRegionLinkStorage[i].size = 0;
 
 			return 0; // Success
 		}
@@ -96,12 +103,14 @@ namespace MemoryInternal
 
 			ZoneScopedXC(tracy::Color::Seashell2);
 
-			registry.m_pageStorage = std::vector<T>();
-			registry.m_freeRegionLinkStorage = std::vector<AllocLink>();
+			delete[] registry.m_freeRegionLinkStorage;
+			delete[] registry.m_pageStorage;
 
+			registry.m_nextFreeRegion = 0;
 			registry.m_freeRegionsRoot = 0;
-			registry.m_initialized = false;
+			registry.m_maxFreeRegions = 0;
 			registry.m_maxCount = 0;
+			registry.m_initialized = false;
 		}
 
 		[[nodiscard]] static PoolPtr<T> Alloc(IndexType count)
@@ -164,6 +173,10 @@ namespace MemoryInternal
 					// Mark as unused
 					freeRegions[current].next = NULL_INDEX;
 					freeRegions[current].size = 0;
+
+					// Update next free region index if this is before it
+					if (current < registry.m_nextFreeRegion)
+						registry.m_nextFreeRegion = current;
 				}
 
 				// Register allocation in tracy
@@ -182,7 +195,7 @@ namespace MemoryInternal
 			if (!registry.m_initialized || !ptr) [[unlikely]]
 				return -1;
 
-			IndexType offset = static_cast<IndexType>(ptr.get() - registry.m_pageStorage.data());
+			IndexType offset = static_cast<IndexType>(ptr.get() - registry.m_pageStorage);
 
 			if (offset >= registry.m_maxCount) [[unlikely]]
 				return -2; // Failure: Invalid pointer
@@ -229,10 +242,8 @@ namespace MemoryInternal
 
 				// Ensure no overlap with existing free regions
 				if ((left != NULL_INDEX && (offset < freeRegions[left].offset + freeRegions[left].size)) ||
-					(right != NULL_INDEX && (offset + count > freeRegions[right].offset)))
-				{
+					(right != NULL_INDEX && (offset + count > freeRegions[right].offset))) [[unlikely]]
 					return -4; // Failure: Overlaps with existing free region
-				}
 
 				// If regions are contiguous, merge them instead of creating a new link
 				if (left != NULL_INDEX && (freeRegions[left].offset + freeRegions[left].size == offset))
@@ -250,6 +261,10 @@ namespace MemoryInternal
 						freeRegions[left].next = freeRegions[right].next;
 
 						freeRegions[right] = AllocLink(0, 0); // Mark as unused
+
+						// Update next free region index if this is before it
+						if (right < registry.m_nextFreeRegion)
+							registry.m_nextFreeRegion = right;
 					}
 				}
 				else if (right != NULL_INDEX && (offset + count == freeRegions[right].offset))
@@ -286,19 +301,33 @@ namespace MemoryInternal
 			return 0; // Success
 		}
 
-		const static std::vector<T> &DBG_GetPageStorage()
+		const static T *const DBG_GetPageStorage()
 		{
 			if (!Get().m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
 
 			return Get().m_pageStorage;
 		}
-		const static std::vector<AllocLink> &DBG_GetFreeRegions()
+		const static AllocLink *const DBG_GetFreeRegions()
 		{
 			if (!Get().m_initialized)
 				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
 
 			return Get().m_freeRegionLinkStorage;
+		}
+		const static IndexType DBG_GetMaxFreeRegions()
+		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
+			return Get().m_maxFreeRegions;
+		}
+		const static IndexType DBG_GetMaxCount()
+		{
+			if (!Get().m_initialized)
+				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
+
+			return Get().m_maxCount;
 		}
 		const static IndexType DBG_GetFreeRegionRoot()
 		{
@@ -309,16 +338,17 @@ namespace MemoryInternal
 		}
 
 	private:
-		std::vector<T> m_pageStorage;
-		std::vector<AllocLink> m_freeRegionLinkStorage;
+		T *m_pageStorage = nullptr;
+		AllocLink *m_freeRegionLinkStorage = nullptr;
 
 		bool m_initialized = false;
 		IndexType m_maxCount = 0;
+		IndexType m_maxFreeRegions = 0;
 		IndexType m_freeRegionsRoot = NULL_INDEX;
+		IndexType m_nextFreeRegion = 0;
 
 
 		PoolAllocator() = default;
-		~PoolAllocator() = default;
 
 		[[nodiscard]] static PoolAllocator<T> &Get()
 		{
@@ -330,12 +360,19 @@ namespace MemoryInternal
 		{
 			ZoneScopedXC(tracy::Color::Sienna2);
 
+			IndexType start = m_nextFreeRegion;
+
 			// Look through free region links to find first with size of 0, meaning unused
-			for (IndexType i = 0; i < m_freeRegionLinkStorage.size(); ++i)
+			for (IndexType i = start; i < m_maxFreeRegions; ++i)
 			{
-				if (m_freeRegionLinkStorage[i].size == 0)
-					return i;
+				if (m_freeRegionLinkStorage[i].size != 0)
+					continue;
+				
+				m_nextFreeRegion = i + 1;
+				return i;
 			}
+
+			m_nextFreeRegion = m_maxFreeRegions - 1;
 
 			// No free link found
 			return NULL_INDEX;
