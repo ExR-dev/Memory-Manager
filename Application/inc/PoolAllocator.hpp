@@ -9,12 +9,42 @@
 
 namespace MemoryInternal
 {
+	// Forward declare PoolAllocator
+	template <typename T>
+	class PoolAllocator;
+
 	//typedef size_t IndexType;
 	typedef unsigned int IndexType;
 
 	constexpr IndexType NULL_INDEX = static_cast<IndexType>(-1);
 	constexpr IndexType DEFAULT_PAGE_SIZE = (1 << 13);
 
+
+	template <typename T>
+	class PoolPtr
+	{
+		friend class PoolAllocator<T>;
+
+	private:
+		T *m_ptr;
+		IndexType m_size;
+
+		PoolPtr(T *p, IndexType s) : m_ptr(p), m_size(s) {}
+
+	public:
+		PoolPtr() : m_ptr(nullptr), m_size(0) {}
+
+		operator T *() const { return m_ptr; }
+		operator bool() const { return m_ptr != nullptr; }
+
+		T *operator->() { return m_ptr; }
+		T &operator[](size_t index) { return m_ptr[index]; }
+
+		// Array size
+		inline IndexType size() const { return m_size; }
+
+		inline T *get() const { return m_ptr; }
+	};
 
 	template <typename T>
 	class PoolAllocator
@@ -39,20 +69,18 @@ namespace MemoryInternal
 			if (registry.m_initialized)
 				return -1; // Failure: Already initialized
 
-			if (maxCount <= 0)
+			if (maxCount <= 0) [[unlikely]]
 				return -2; // Failure: Invalid max count
 
 			ZoneScopedXC(tracy::Color::DarkOrchid2);
 
 			registry.m_pageStorage.resize(maxCount);
-			registry.m_allocMap.resize(maxCount);
 			registry.m_freeRegionLinkStorage.resize(maxCount / 2 + 1);
 
 			registry.m_maxCount = maxCount;
 			registry.m_initialized = true;
 			registry.m_freeRegionsRoot = 0;
 
-			std::fill(registry.m_allocMap.begin(), registry.m_allocMap.end(), NULL_INDEX);
 			std::fill(registry.m_freeRegionLinkStorage.begin(), registry.m_freeRegionLinkStorage.end(), AllocLink(0, 0));
 
 			registry.m_freeRegionLinkStorage[0] = AllocLink(0, maxCount);
@@ -69,7 +97,6 @@ namespace MemoryInternal
 			ZoneScopedXC(tracy::Color::Seashell2);
 
 			registry.m_pageStorage = std::vector<T>();
-			registry.m_allocMap = std::vector<IndexType>();
 			registry.m_freeRegionLinkStorage = std::vector<AllocLink>();
 
 			registry.m_freeRegionsRoot = 0;
@@ -77,17 +104,17 @@ namespace MemoryInternal
 			registry.m_maxCount = 0;
 		}
 
-		[[nodiscard]] static T *Alloc(IndexType count)
+		[[nodiscard]] static PoolPtr<T> Alloc(IndexType count)
 		{
 			ZoneScopedXC(tracy::Color::Goldenrod2);
 
 			PoolAllocator<T> &registry = Get();
 
-			if (!registry.m_initialized)
+			if (!registry.m_initialized) [[unlikely]]
 				Initialize(DEFAULT_PAGE_SIZE); // Default max count
 
-			if (count == 0 || count > registry.m_maxCount)
-				return nullptr; // Failure: Invalid count
+			if (count == 0 || count > registry.m_maxCount) [[unlikely]]
+				return PoolPtr<T>(); // Failure: Invalid count
 
 			// Find first free region of sufficient size
 			IndexType prev = NULL_INDEX;
@@ -139,39 +166,34 @@ namespace MemoryInternal
 					freeRegions[current].size = 0;
 				}
 
-				// Add to alloc map
-				registry.m_allocMap[allocOffset] = count;
-
 				// Register allocation in tracy
 				TracyAllocN(&registry.m_pageStorage[allocOffset], count * sizeof(T), "Pool");
 
-				return &registry.m_pageStorage[allocOffset];
+				return PoolPtr<T>(&registry.m_pageStorage[allocOffset], count);
 			}
 
-			return nullptr; // Failure: No sufficient free region
+			return PoolPtr<T>(); // Failure: No sufficient free region
 		}
-		static int Free(T *ptr)
+		static int Free(PoolPtr<T> &ptr)
 		{
 			ZoneScopedXC(tracy::Color::LavenderBlush1);
 
 			PoolAllocator<T> &registry = Get();
-			if (!registry.m_initialized || ptr == nullptr) [[unlikely]]
+			if (!registry.m_initialized || !ptr) [[unlikely]]
 				return -1;
 
-			IndexType offset = static_cast<IndexType>(ptr - registry.m_pageStorage.data());
+			IndexType offset = static_cast<IndexType>(ptr.get() - registry.m_pageStorage.data());
 
 			if (offset >= registry.m_maxCount) [[unlikely]]
 				return -2; // Failure: Invalid pointer
+			
+			IndexType count = ptr.size();
 
-			IndexType count = registry.m_allocMap[offset];
 			if (count == NULL_INDEX) [[unlikely]]
 				return -3; // Failure: Not allocated
 
 			// Unregister allocation in tracy
-			TracyFreeN(ptr, "Pool");
-
-			// Remove from alloc map
-			registry.m_allocMap[offset] = NULL_INDEX;
+			TracyFreeN(ptr.get(), "Pool");
 
 			auto &freeRegions = registry.m_freeRegionLinkStorage;
 
@@ -203,6 +225,13 @@ namespace MemoryInternal
 
 					left = right;
 					right = freeRegions[right].next;
+				}
+
+				// Ensure no overlap with existing free regions
+				if ((left != NULL_INDEX && (offset < freeRegions[left].offset + freeRegions[left].size)) ||
+					(right != NULL_INDEX && (offset + count > freeRegions[right].offset)))
+				{
+					return -4; // Failure: Overlaps with existing free region
 				}
 
 				// If regions are contiguous, merge them instead of creating a new link
@@ -264,13 +293,6 @@ namespace MemoryInternal
 
 			return Get().m_pageStorage;
 		}
-		const static std::vector<IndexType> &DBG_GetAllocMap()
-		{
-			if (!Get().m_initialized)
-				Initialize(DEFAULT_PAGE_SIZE); // Ensure initialized for debugging
-
-			return Get().m_allocMap;
-		}
 		const static std::vector<AllocLink> &DBG_GetFreeRegions()
 		{
 			if (!Get().m_initialized)
@@ -288,7 +310,6 @@ namespace MemoryInternal
 
 	private:
 		std::vector<T> m_pageStorage;
-		std::vector<IndexType> m_allocMap; // Offset to size mapping
 		std::vector<AllocLink> m_freeRegionLinkStorage;
 
 		bool m_initialized = false;
@@ -323,13 +344,13 @@ namespace MemoryInternal
 
 
 	template <typename T>
-	[[nodiscard]] inline T *Alloc(IndexType count)
+	[[nodiscard]] inline PoolPtr<T> Alloc(IndexType count)
 	{
 		return PoolAllocator<T>::Alloc(count);
 	}
 
 	template <typename T>
-	inline int Free(T *ptr)
+	inline int Free(typename PoolPtr<T> &ptr)
 	{
 		return PoolAllocator<T>::Free(ptr);
 	}

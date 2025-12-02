@@ -57,6 +57,8 @@ struct TestPoolParams
 
 
 
+static size_t trashVar = 0;
+
 
 template<typename T>
 static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int maxAllocSize)
@@ -65,10 +67,10 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 
 	using namespace MemoryInternal;
 
-	std::vector<T *> allocs;
+	std::vector<PoolPtr<T>> allocs;
 	std::vector<int> currAllocs;
 
-	allocs.resize(allocCount, nullptr);
+	allocs.resize(allocCount, PoolPtr<T>());
 	currAllocs.reserve(maxConcurrentAllocs);
 
 	std::chrono::high_resolution_clock::time_point startTime = std::chrono::high_resolution_clock::now();
@@ -94,7 +96,7 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 
 				Free<T>(allocs[freeIdx]);
 
-				allocs[freeIdx] = nullptr;
+				allocs[freeIdx] = PoolPtr<T>();
 				currAllocs.erase(currAllocs.begin() + currAllocIndex);
 			}
 		}
@@ -114,20 +116,22 @@ static float StressTestPoolAlloc(int allocCount, int maxConcurrentAllocs, int ma
 			// Find a free slot
 			for (int k = 0; k < allocCount; ++k)
 			{
-				if (allocs[k] == nullptr)
-				{
-					allocIdx = k;
-					break;
-				}
+				if (allocs[k])
+					continue;
+
+				allocIdx = k;
+				break;
 			}
 
 			if (allocIdx == -1)
 				continue;
 
-			T *newAlloc = Alloc<T>(allocSize);
+			PoolPtr<T> newAlloc = Alloc<T>(allocSize);
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
+
+			trashVar += reinterpret_cast<size_t>(newAlloc.get()) + allocSize;
 
 			++i;
 		}
@@ -200,11 +204,11 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 			// Find a free slot
 			for (int k = 0; k < allocCount; ++k)
 			{
-				if (allocs[k] == nullptr)
-				{
-					allocIdx = k;
-					break;
-				}
+				if (allocs[k])
+					continue;
+				
+				allocIdx = k;
+				break;
 			}
 
 			if (allocIdx == -1)
@@ -215,6 +219,8 @@ static float StressTestPoolNew(int allocCount, int maxConcurrentAllocs, int maxA
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
+
+			trashVar += reinterpret_cast<size_t>(newAlloc) + allocSize;
 
 			++i;
 		}
@@ -357,6 +363,8 @@ static float StressTestPoolNonArrayAlloc(int allocCount, int maxConcurrentAllocs
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
 
+			trashVar += reinterpret_cast<size_t>(newAlloc);
+
 			++i;
 		}
 	}
@@ -442,6 +450,8 @@ static float StressTestPoolNonArrayNew(int allocCount, int maxConcurrentAllocs)
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
+
+			trashVar += reinterpret_cast<size_t>(newAlloc);
 
 			++i;
 		}
@@ -541,6 +551,8 @@ static float StressTestStackAlloc(int allocCount, int maxConcurrentAllocs, int m
 			T *newAlloc = (T*)stack.Alloc(allocSize);
 			allocs.push_back(newAlloc);
 
+			trashVar += reinterpret_cast<size_t>(newAlloc) + allocSize;
+
 			++i;
 			if (i >= allocCount)
 				break;
@@ -581,6 +593,8 @@ static float StressTestStackNew(int allocCount, int maxConcurrentAllocs, int max
 
 			allocs.push_back(newAlloc);
 			TracyAllocN(newAlloc, allocSize * sizeof(T), "New");
+
+			trashVar += reinterpret_cast<size_t>(newAlloc) + allocSize;
 
 			++i;
 			if (i >= allocCount)
@@ -666,8 +680,6 @@ static size_t GetTypeSizeByName(const std::string &typeName)
 }
 
 
-static size_t trashVar = 0;
-
 void PerfTests::RunPoolPerfTests()
 {
 	ZoneScopedC(tracy::Color::Purple2);
@@ -679,38 +691,16 @@ void PerfTests::RunPoolPerfTests()
 		//"TestStructSmall"
 		//"TestStructMed"
 		
-		"char",
-		"int",
-		"size_t",
-		"TestStructSmall",
+		//"char",
+		//"int",
+		//"size_t",
+		//"TestStructSmall",
 		"TestStructMed",
-		"TestStructLarge",
+		//"TestStructLarge",
 	};
 
 	std::vector<int> maxConcurrent = {
-		1 << 6
-
-		//1 << 0,
-		//1 << 1,
-		//1 << 2,
-		//1 << 3,
-		//1 << 4,
-		//1 << 5,
-		//1 << 6,
-		//1 << 7,
-		//1 << 8,
-		//1 << 9,
-		//1 << 10,
-		//1 << 11,
-		//1 << 12,
-		//1 << 13,
-		//1 << 14,
-		//1 << 15,
-		//1 << 16
-	};
-
-	std::vector<int> maxAllocSizes = {
-		//1 << 6
+		//1 << 4
 
 		1 << 0,
 		1 << 1,
@@ -729,6 +719,28 @@ void PerfTests::RunPoolPerfTests()
 		1 << 14,
 		1 << 15,
 		1 << 16
+	};
+
+	std::vector<int> maxAllocSizes = {
+		//1 << 4
+
+		1 << 0,
+		1 << 1,
+		1 << 2,
+		1 << 3,
+		1 << 4,
+		1 << 5,
+		1 << 6,
+		1 << 7,
+		1 << 8,
+		1 << 9,
+		1 << 10,
+		1 << 11,
+		1 << 12,
+		//1 << 13,
+		//1 << 14,
+		//1 << 15,
+		//1 << 16
 	};
 
 	size_t maxMemUsage = 1ull << 28; 
@@ -800,7 +812,7 @@ void PerfTests::RunPoolPerfTests()
 				tests.push_back({ 
 					typeName, 
 					16, 
-					1000, 
+					2500, 
 					concurrent, 
 					allocSize
 				});

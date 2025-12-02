@@ -16,71 +16,41 @@ struct TestStruct
 // Helper functions
 
 template <typename T>
-bool IsAddressAllocated(T *addr)
+bool IsAddressAllocated(typename MemoryInternal::PoolPtr<T> addr)
 {
 	using namespace MemoryInternal;
 
-	const auto &allocMap = PoolAllocator<T>::DBG_GetAllocMap();
 	const auto &pageStorage = PoolAllocator<T>::DBG_GetPageStorage();
+	const auto &freeRegionStorage = PoolAllocator<T>::DBG_GetFreeRegions();
+	
+	size_t addrOffset = addr.get() - pageStorage.data();
+	IndexType addrSize = addr.size();
 
-	size_t addrOffset = addr - pageStorage.data();
+	IndexType regionIndex = PoolAllocator<T>::DBG_GetFreeRegionRoot();
 
-	// Step back from addrOffset to find the allocation start
-	size_t i = addrOffset;
-
-	while (i < allocMap.size())
+	// Ensure no free region overlaps with addr
+	while (regionIndex != NULL_INDEX)
 	{
-		if (allocMap[i] == NULL_INDEX)
+		const auto &freeRegion = freeRegionStorage[regionIndex];
+		if (addrOffset + addrSize <= freeRegion.offset)
 		{
-			--i;
-			continue;
+			// addr is completely before this free region
+			regionIndex = freeRegion.next;
+			break;
 		}
-
-		if (addrOffset < i + allocMap[i])
+		else if (addrOffset >= freeRegion.offset + freeRegion.size)
 		{
-			return true;
+			// addr is completely after this free region
+			regionIndex = freeRegion.next;
 		}
 		else
 		{
-			return false; // Not found
+			// Overlaps with a free region
+			return false;
 		}
 	}
 
-	return false;
-}
-
-template <typename T>
-size_t GetAllocatedSize(T *addr)
-{
-	using namespace MemoryInternal;
-
-	const auto &allocMap = PoolAllocator<T>::DBG_GetAllocMap();
-	const auto &pageStorage = PoolAllocator<T>::DBG_GetPageStorage();
-
-	size_t addrOffset = addr - pageStorage.data();
-
-	// Step back from addrOffset to find the allocation start
-	size_t i = addrOffset;
-
-	while (i < allocMap.size())
-	{
-		if (allocMap[i] == NULL_INDEX)
-		{
-			--i;
-			continue;
-		}
-
-		if (addrOffset < i + allocMap[i])
-		{
-			return allocMap[i];
-		}
-		else
-		{
-			return 0; // Not found
-		}
-	}
-
-	return 0;
+	return true;
 }
 
 
@@ -92,9 +62,9 @@ TEST(PoolTest, AllocFree)
 
 	PoolAllocator<int>::Reset();
 
-	int *allocInt = Alloc<int>(1);
+	auto allocInt = Alloc<int>(1);
 	
-	(*allocInt) = 69;
+	*allocInt = 69;
 
 	ASSERT_EQ(*allocInt, 69);
 
@@ -107,7 +77,7 @@ TEST(PoolTest, DuplicateAlloc)
 
 	PoolAllocator<int>::Reset();
 
-	int *allocArray[3]{};
+	PoolPtr<int> allocArray[3]{};
 	int allocSizes[3] = { 5, 10, 18 };
 		
 	for (int i = 0; i < 3; ++i)
@@ -120,7 +90,7 @@ TEST(PoolTest, DuplicateAlloc)
 
 	for (int i = 1; i < 3; ++i)
 	{
-		ASSERT_EQ(allocArray[i - 1] + allocSizes[i - 1], allocArray[i]);
+		ASSERT_EQ(allocArray[i - 1].get() + allocArray[i - 1].size(), allocArray[i].get());
 	}
 
 	for (int i = 1; i < 3; ++i)
@@ -135,14 +105,14 @@ TEST(PoolTest, UnorderedAlloc)
 
 	PoolAllocator<int>::Reset();
 
-	int *allocArray[3]{ nullptr, nullptr, nullptr };
+	PoolPtr<int> allocArray[3]{};
 	int allocSizes[3]{ 5, 10, 18 };
 		
 	for (int i = 0; i < 3; ++i)
 	{
 		allocArray[i] = Alloc<int>(allocSizes[i]);
 
-		ASSERT_TRUE(allocArray[i] != nullptr);
+		ASSERT_TRUE(allocArray[i]);
 
 		for (int j = 0; j < allocSizes[i]; ++j)
 			allocArray[i][j] = i * 100 + j;
@@ -164,20 +134,20 @@ TEST(PoolTest, ReuseFreedSpace)
 
 	PoolAllocator<int>::Reset();
 
-	int *alloc1 = Alloc<int>(10);
-	int *alloc2 = Alloc<int>(20);
+	PoolPtr<int> alloc1 = Alloc<int>(10);
+	PoolPtr<int> alloc2 = Alloc<int>(20);
 
-	ASSERT_EQ(IsAddressAllocated<int>(alloc1), true);
-	ASSERT_EQ(IsAddressAllocated<int>(alloc2), true);
+	ASSERT_TRUE(IsAddressAllocated<int>(alloc1));
+	ASSERT_TRUE(IsAddressAllocated<int>(alloc2));
 
 	ASSERT_EQ(Free<int>(alloc1), 0);
 
-	ASSERT_EQ(IsAddressAllocated<int>(alloc1), false);
-	ASSERT_EQ(IsAddressAllocated<int>(alloc2), true);
+	ASSERT_FALSE(IsAddressAllocated<int>(alloc1));
+	ASSERT_TRUE(IsAddressAllocated<int>(alloc2));
 
-	int *alloc3 = Alloc<int>(5);
+	PoolPtr<int> alloc3 = Alloc<int>(5);
 
-	ASSERT_EQ(alloc3, alloc1); // Should reuse freed space
+	ASSERT_EQ(alloc3.get(), alloc1.get()); // Should reuse freed space
 
 	ASSERT_EQ(Free<int>(alloc2), 0);
 	ASSERT_EQ(Free<int>(alloc3), 0);
@@ -189,30 +159,26 @@ TEST(PoolTest, AllocFreeEdgeCases)
 
 	PoolAllocator<int>::Reset();
 
-	int *allocInt = Alloc<int>(1);
-	ASSERT_TRUE(allocInt != nullptr);
+	PoolPtr<int> allocInt = Alloc<int>(1);
+	ASSERT_TRUE(allocInt);
 
 	// Freeing nullptr
-	int result = Free<int>(nullptr);
+	PoolPtr<int> nullPtr;
+	int result = Free<int>(nullPtr);
 	ASSERT_EQ(result, -1);
 
-	// Freeing unallocated pointer
-	int dummy;
-	result = Free<int>(&dummy);
-	ASSERT_EQ(result, -2);
-
 	// Allocating zero size
-	int *allocZero = Alloc<int>(0);
-	ASSERT_EQ(allocZero, nullptr);
+	PoolPtr<int> allocZero = Alloc<int>(0);
+	ASSERT_EQ(allocZero.get(), nullptr);
 
 	// Allocating more than max size
-	int *allocTooLarge = Alloc<int>((MemoryInternal::IndexType)MemoryInternal::PoolAllocator<int>::DBG_GetPageStorage().size() + 1);
-	ASSERT_EQ(allocTooLarge, nullptr);
+	PoolPtr<int> allocTooLarge = Alloc<int>((MemoryInternal::IndexType)MemoryInternal::PoolAllocator<int>::DBG_GetPageStorage().size() + 1);
+	ASSERT_EQ(allocTooLarge.get(), nullptr);
 
 	ASSERT_EQ(Free<int>(allocInt), 0);
 
 	// Double free check
-	ASSERT_EQ(Free<int>(allocInt), -3);
+	ASSERT_EQ(Free<int>(allocInt), -4);
 }
 
 TEST(PoolTest, AllocFreeMultipleTypes)
@@ -223,13 +189,13 @@ TEST(PoolTest, AllocFreeMultipleTypes)
 	PoolAllocator<double>::Reset();
 	PoolAllocator<char>::Reset();
 
-	int *allocInt = Alloc<int>(10);
-	double *allocDouble = Alloc<double>(5);
-	char *allocChar = Alloc<char>(20);
+	PoolPtr<int> allocInt = Alloc<int>(10);
+	PoolPtr<double> allocDouble = Alloc<double>(5);
+	PoolPtr<char> allocChar = Alloc<char>(20);
 
-	ASSERT_TRUE(allocInt != nullptr);
-	ASSERT_TRUE(allocDouble != nullptr);
-	ASSERT_TRUE(allocChar != nullptr);
+	ASSERT_TRUE(allocInt);
+	ASSERT_TRUE(allocDouble);
+	ASSERT_TRUE(allocChar);
 
 	for (int i = 0; i < 10; ++i)
 		allocInt[i] = i * 10;
@@ -256,9 +222,9 @@ TEST(PoolTest, StructAlloc)
 
 	PoolAllocator<TestStruct>::Reset();
 
-	TestStruct *allocStruct = Alloc<TestStruct>(10);
+	PoolPtr<TestStruct> allocStruct = Alloc<TestStruct>(10);
 
-	ASSERT_TRUE(allocStruct != nullptr);
+	ASSERT_TRUE(allocStruct);
 
 	for (int i = 0; i < 10; ++i)
 	{
@@ -289,7 +255,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 	PoolAllocator<float>::Reset();
 	PoolAllocator<float>::Initialize(1ull << 16);
 
-	float *allocs[allocCount]{ nullptr };
+	PoolPtr<float> allocs[allocCount]{};
 	std::vector<int> currAllocs;
 	currAllocs.reserve(maxConcurrentAllocs);
 
@@ -309,7 +275,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 				int freeIdx = currAllocs[currAllocIndex];
 
 				// Before freeing, set the memory to 0 for verification
-				size_t allocSize = GetAllocatedSize<float>(allocs[freeIdx]) / sizeof(float);
+				size_t allocSize = (size_t)allocs[freeIdx].size();
 				for (size_t k = 0; k < allocSize; ++k)
 				{
 					if (allocs[freeIdx])
@@ -318,7 +284,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 
 				ASSERT_EQ(Free<float>(allocs[freeIdx]), 0);
 
-				allocs[freeIdx] = nullptr;
+				allocs[freeIdx] = {};
 				currAllocs.erase(currAllocs.begin() + currAllocIndex);
 			}
 		}
@@ -343,12 +309,9 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 				}
 			}
 
-			if (allocIdx == -1)
-				continue;
-
 			ASSERT_TRUE(allocIdx != -1);
-			float *newAlloc = Alloc<float>(allocSize);
-			ASSERT_TRUE(newAlloc != nullptr);
+			PoolPtr<float> newAlloc = Alloc<float>(allocSize);
+			ASSERT_TRUE(newAlloc.get() != nullptr);
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
@@ -374,8 +337,9 @@ TEST(PoolTest, UnorderedAllocFreeStress_Alloc)
 TEST(PoolTest, UnorderedAllocFreeStress_New)
 {
 	float *allocs[allocCount]{ nullptr };
-	std::vector<int> currAllocs;
+	std::vector<int> currAllocs, allocSizes;
 	currAllocs.reserve(maxConcurrentAllocs);
+	allocSizes.reserve(maxConcurrentAllocs);
 
 	for (int i = 0; i < allocCount; )
 	{
@@ -391,10 +355,10 @@ TEST(PoolTest, UnorderedAllocFreeStress_New)
 
 				int currAllocIndex = rand() % currAllocs.size();
 				int freeIdx = currAllocs[currAllocIndex];
+				int allocSize = allocSizes[currAllocIndex];
 
 				// Before freeing, set the memory to 0 for verification
-				size_t allocSize = GetAllocatedSize<float>(allocs[freeIdx]) / sizeof(float);
-				for (size_t k = 0; k < allocSize; ++k)
+				for (size_t k = 0; k < (size_t)allocSize; ++k)
 				{
 					if (allocs[freeIdx])
 						allocs[freeIdx][k] = 0.0f;
@@ -404,6 +368,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_New)
 
 				allocs[freeIdx] = nullptr;
 				currAllocs.erase(currAllocs.begin() + currAllocIndex);
+				allocSizes.erase(allocSizes.begin() + currAllocIndex);
 			}
 		}
 
@@ -436,6 +401,7 @@ TEST(PoolTest, UnorderedAllocFreeStress_New)
 
 			allocs[allocIdx] = newAlloc;
 			currAllocs.push_back(allocIdx);
+			allocSizes.push_back(allocSize);
 
 			++i;
 

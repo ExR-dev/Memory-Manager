@@ -376,11 +376,10 @@ int main()
 				PoolAllocator<char>::Initialize(4096);
 
 				auto &pageStorage = PoolAllocator<char>::DBG_GetPageStorage();
-				auto &allocMap = PoolAllocator<char>::DBG_GetAllocMap();
                 auto &freeRegions = PoolAllocator<char>::DBG_GetFreeRegions();
                 auto freeRegionRoot = PoolAllocator<char>::DBG_GetFreeRegionRoot();
 
-				static std::vector<char *> allocations;
+				static std::vector<PoolPtr<char>> allocations;
 
 				// Draw blocks
                 {
@@ -437,8 +436,8 @@ int main()
                     ImGui::SameLine();
                     if (ImGui::Button("Make Allocation"))
                     {
-                        char *ptr = PoolAllocator<char>::Alloc(static_cast<IndexType>(allocSize));
-                        if (ptr != nullptr)
+                        PoolPtr<char> ptr = PoolAllocator<char>::Alloc(static_cast<IndexType>(allocSize));
+                        if (ptr)
                             allocations.push_back(ptr);
                     }
 
@@ -448,10 +447,10 @@ int main()
                         {
 							ImGui::PushID(static_cast<int>(i));
 
-							char *ptr = allocations[i];
+                            PoolPtr<char> ptr = allocations[i];
 
-							IndexType offset = static_cast<IndexType>(ptr - pageStorage.data());
-                            IndexType blockSize = allocMap[offset];
+							IndexType offset = static_cast<IndexType>((char*)ptr - pageStorage.data());
+                            IndexType blockSize = ptr.size();
 
                             ImGui::Text("Allocation %d: %p (%d, %d)", static_cast<int>(i), ptr, offset, blockSize);
                             ImGui::SameLine();
@@ -462,7 +461,7 @@ int main()
                                 --i;
                             }
                                 
-                            ImGui::InputTextMultiline("##data", ptr, blockSize);
+                            ImGui::InputTextMultiline("##data", ptr.get(), blockSize);
 
                             ImGui::Separator();
 
