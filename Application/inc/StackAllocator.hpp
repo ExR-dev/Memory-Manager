@@ -1,7 +1,13 @@
 #pragma once
+
+#include "TracyWrapper.hpp"
+
 #include <memory>
 #include <array>
 #include <iostream>
+#include <stack>
+
+//#define DBG_STACK_TRACK_SIZE
 
 constexpr size_t STACK_SIZE = 1 << 14;
 typedef std::unique_ptr<std::array<char, STACK_SIZE>> StorageType;
@@ -11,45 +17,63 @@ class StackAllocator
 private:
 	StorageType m_stack;
 	size_t m_top = 0;
+#ifdef TRACY_ENABLE
+	std::stack<void*> m_dbgTrackedAllocs;
+#endif
+#ifdef DBG_STACK_TRACK_SIZE
+	std::vector<size_t> m_dbgTrackedSizes;
+#endif
 
 public:
 	StackAllocator()
 	{
 		m_stack = std::make_unique<std::array<char, STACK_SIZE>>();
+
 		*(m_stack.get()) = {};
 	}
 
-	void* At(size_t idx)
+	void* Alloc(size_t size)
 	{
-		if (idx >= m_top)
+		ZoneScopedC(tracy::Color::CornflowerBlue);
+
+		if (m_top + size > STACK_SIZE)
 			return nullptr;
 
-		return &m_stack.get()->at(idx);
-	}
+		char* ptr = m_stack.get()->data();
+		ptr += m_top;
+		m_top += size;
 
-	size_t Push(void* data, size_t size)
-	{
-		if (m_top + size > STACK_SIZE)
-			return (size_t)-1;
+#ifdef TRACY_ENABLE
+		TracyAllocN(ptr, size, "Stack");
+		m_dbgTrackedAllocs.push(ptr);
+#endif
 
-		size_t start = m_top;
-		char* begin = m_stack.get()->data();
+#ifdef DBG_STACK_TRACK_SIZE
+		m_dbgTrackedSizes.push_back(size);
+#endif
 
-		for (size_t i = 0; i < size; i++)
-		{
-			begin[m_top] = ((char*)data)[i];
-			m_top++;
-		}
-
-		return start;
+		return ptr;
 	}
 
 	void Reset()
 	{
+		ZoneScopedC(tracy::Color::Chartreuse2);
+
+#ifdef TRACY_ENABLE
+		while (!m_dbgTrackedAllocs.empty())
+		{
+			TracyFreeN(m_dbgTrackedAllocs.top(), "Stack");
+			m_dbgTrackedAllocs.pop();
+		}
+#endif
+
+#ifdef DBG_STACK_TRACK_SIZE
+		m_dbgTrackedSizes.clear();
+#endif
 		m_top = 0;
 	}
 
-	size_t DBG_GetTop()
+	size_t DBG_GetTop() const
 	{
 		return m_top;
 	}
@@ -63,4 +87,11 @@ public:
 	{
 		return STACK_SIZE;
 	}
+
+#ifdef DBG_STACK_TRACK_SIZE
+	const std::vector<size_t> &DBG_GetAllocSizes()
+	{
+		return m_dbgTrackedSizes;
+	}
+#endif
 };

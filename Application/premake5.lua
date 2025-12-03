@@ -1,6 +1,9 @@
 project "Application"
+
     kind "ConsoleApp"
     location(rootPath .. "/Generated")
+
+
 
     local externalLibPath = targetBuildPath .. "/External/lib"
     libdirs(externalLibPath)
@@ -12,7 +15,14 @@ project "Application"
     includedirs{"../Library/include", targetBuildPath .. "/External/include" , "inc"}
     dependson{"ImGui", "SDL3", "TracyClient"}
 
+	defines{ "TRACY_ENABLE", "TRACY_DETAILED" }
+
     links{"Library", "ImGui", "TracyClient"}
+
+    filter { "toolset:msvc" }
+        disablewarnings { "6262" }
+    filter { "toolset:clang or toolset:gcc" }
+        disablewarnings { "maybe-uninitialized" }
 
     filter "system:windows"
         links{"SDL3-static", "imagehlp", "setupapi", "user32", "version", "uuid", "winmm", "imm32"}       

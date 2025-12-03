@@ -1,5 +1,5 @@
 #include "MemoryManager.hpp"
-#include "PageRegistry.hpp"
+#include "PoolAllocator.hpp"
 
 Memory::MemoryManager::MemoryManager()
 {

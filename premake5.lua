@@ -5,13 +5,15 @@ workspace "Memory-Manager"
 
     location("Generated")
     cppdialect "C++23"
-    warnings "Extra"
-    fatalwarnings { "All" }
+
     configurations
     {
         "debug",
         "release"
     }
+
+    warnings "Extra"
+    --fatalwarnings { "All" }
 
     os.execute("git submodule update --recursive")
 
@@ -20,13 +22,13 @@ workspace "Memory-Manager"
 
     filter "configurations:debug"
         runtime "Debug"
-        defines { "DEBUG", "TRACY_ENABLE" }
+        defines { "DEBUG" }
         symbols "On"
         optimize "Off"
 
     filter "configurations:release"
         runtime "Release"
-        defines { "NDEBUG", "TRACY_ENABLE" }
+        defines { "NDEBUG" }
         optimize "On"
 
     rootPath = path.getdirectory(_SCRIPT)

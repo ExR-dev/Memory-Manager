@@ -1,34 +1,43 @@
 #pragma once
+
+#include "TracyWrapper.hpp"
+
 #include <memory>
 #include <vector>
 #include <array>
 #include <bitset>
-#include <math.h>
+#include <cmath>
 
 class BuddyAllocator
 {
-private:
+public:
 	struct Block
 	{
 		bool isFree = true;
 		size_t size = 0;
 		size_t offset = 0;
 
-		Block* left = nullptr;
-		Block* right = nullptr;
-		Block* parent = nullptr;
+		Block *left = nullptr;
+		Block *right = nullptr;
+		Block *parent = nullptr;
 	};
 
+private:
 	std::unique_ptr<std::array<char, 4096 * 1024>> m_memory;
 	size_t m_minimumSize = 32 * 1024;
 
-	size_t m_numRows = (size_t)(log2(4096 * 1024) - log2(m_minimumSize));
-	size_t m_numBlocks = (size_t)pow(2, m_numRows + 1) - 1;
+	size_t m_numRows = static_cast<size_t>(log2(4096 * 1024) - log2(static_cast<double>(m_minimumSize)));
+	size_t m_numBlocks = static_cast<size_t>(pow(2, static_cast<double>(m_numRows) + 1) - 1);
 
 	std::unique_ptr<std::vector<Block>> m_blocks;
 
-	Block* FindBlock(Block* block, size_t size, int parentIndex)
+	Block* FindBlock(Block* block, const size_t size, const int parentIndex)
 	{
+		ZoneScopedXC(tracy::Color::Fuchsia);
+
+		if (block == nullptr)
+			return nullptr;
+
 		// If the block we are checking is free, and if the data could fit in the block
 		if (block->isFree && block->size >= size)
 		{
@@ -39,8 +48,8 @@ private:
 				// and the data can fit in the half size
 				if (block->size / 2 >= m_minimumSize && block->size / 2 >= size)
 				{
-					block->left = &m_blocks.get()->at((2 * parentIndex) + 1);
-					block->right = &m_blocks.get()->at(2 * (parentIndex + 1));
+					block->left = &m_blocks->at((2 * parentIndex) + 1);
+					block->right = &m_blocks->at(2 * (parentIndex + 1));
 
 					block->left->size = block->size / 2;
 					block->right->size = block->size / 2;
@@ -58,21 +67,24 @@ private:
 				}
 
 			}
-			Block* left = FindBlock(block->left, size, (2 * parentIndex) + 1);
-			if (left != nullptr)
+
+			if (Block* left = FindBlock(block->left, size, (2 * parentIndex) + 1); left != nullptr)
 			{
 				return left;
 			}
 			return FindBlock(block->right, size, 2 * (parentIndex + 1));
 		}
-		else
-		{
-			return nullptr;
-		}
+
+		return nullptr;
 	}
 
-	Block* FindBlockByOffset(Block* block, size_t offset)
+	Block* FindBlockByOffset(Block* block, const size_t offset)
 	{
+		ZoneScopedXC(tracy::Color::LightSalmon);
+
+		if (block == nullptr)
+			return nullptr;
+
 		if (block->left == nullptr || block->right == nullptr)
 		{
 			if (block->offset == offset)
@@ -87,56 +99,132 @@ private:
 		return FindBlockByOffset(block->right, offset);
 	}
 
+	bool HasChildren(Block* block)
+	{
+		return block == nullptr || block->left != nullptr || block->right != nullptr;
+	}
+
+	bool CanMerge(Block* parent)
+	{
+		if (parent == nullptr)
+			return false;
+
+		// If at least one child is allocated, we can't merge
+		if (!parent->left->isFree || !parent->right->isFree)
+			return false;
+
+		// If the left child has children, we can't merge
+		if (HasChildren(parent->left))
+			return false;
+		
+		// If the right child has children, we can't merge
+		if (HasChildren(parent->right))
+			return false;
+
+		// If both children are free and don't have any children of their own, we CAN merge
+		return true;
+	}
+
+	void FreeParent(Block* parent)
+	{
+		if (parent == nullptr || !CanMerge(parent))
+			return;
+
+		parent->left = nullptr;
+		parent->right = nullptr;
+		FreeParent(parent->parent);
+	}
+
 public:
 	BuddyAllocator()
 	{
 		m_memory = std::make_unique<std::array<char, 4096 * 1024>>();
 		m_blocks = std::make_unique<std::vector<Block>>();
-		m_blocks.get()->resize(m_numBlocks);
+		m_blocks->resize(m_numBlocks);
 		//Do we need this resize? We need to keep the blocks at constant memory places, so yes?
 		// Change this to reserve.
 		//m_blocks.reserve((1024 * 1000) / m_minimumSize);
 		//m_blocks[0].size = 1024 * 1000;
 
-		m_blocks.get()->at(0).size = 4096 * 1024;
+		m_blocks->at(0).size = 4096 * 1024;
 		//m_blocks.push_back(baseBlock);
 	}
 
 	
-	void* Alloc(size_t size)
+	void* Alloc(const size_t size)
 	{
-		Block* allocated = FindBlock(&m_blocks.get()->at(0), size, 0);
+		ZoneScopedC(tracy::Color::Red);
+
+		const Block* allocated = FindBlock(&m_blocks->at(0), size, 0);
 		if (allocated == nullptr)
 		{
 			return nullptr;
 		}
 
-		return m_memory.get()->data() + allocated->offset;
+		TracyAllocN(m_memory->data() + allocated->offset, size, "Buddy");
+
+		return m_memory->data() + allocated->offset;
 	}
 
 	void Free(void* mem)
 	{
-		ptrdiff_t offset = (char*)mem - m_memory.get()->data();
-		Block* block = FindBlockByOffset(&m_blocks.get()->at(0), offset);
+		ZoneScopedC(tracy::Color::Green);
+
+		const ptrdiff_t offset = static_cast<char*>(mem) - m_memory->data();
+		Block* block = FindBlockByOffset(&m_blocks->at(0), offset);
+
+		if (block == nullptr)
+			throw std::runtime_error("Block was nullptr when searching by offset. Could not free the memory."); // ITS BAD GET MOM
+
+		TracyFreeN(mem, "Buddy");
 
 		block->isFree = true;
-		Block* parent = block->parent;
-		
-		if (parent->left->isFree && parent->right->isFree)
-		{
-			parent->left = nullptr;
-			parent->right = nullptr;
-		}
 
+		FreeParent(block->parent);
 	}
 
 	void PrintAllocatedIndices()
 	{
-		for (size_t i = 0; i < m_blocks.get()->size(); i++)
+		ZoneScopedC(tracy::Color::RoyalBlue1);
+
+		for (size_t i = 0; i < m_blocks->size(); i++)
 		{
-			if (!m_blocks.get()->at(i).isFree)
+			if (!m_blocks->at(i).isFree)
 				std::cout << i << '\n';
 		}
-		std::cout << std::endl;
+
+		std::cout << std::flush;
+	}
+
+
+	std::array<char, 4096 * 1024>* DBG_GetMemory()
+	{
+		return m_memory.get();
+	}
+
+	std::vector<Block>* DBG_GetBlocks()
+	{
+		return m_blocks.get();
+	}
+
+	size_t DBG_GetMinimumSize()
+	{
+		return m_minimumSize;
+	}
+
+	size_t DBG_GetNumRows()
+	{
+		return m_numRows;
+	}
+
+	size_t DBG_GetNumBlocks()
+	{
+		return m_numBlocks;
+	}
+
+	Block* DBG_GetAllocationBlock(void* ptr)
+	{
+		const ptrdiff_t offset = static_cast<char*>(ptr) - m_memory->data();
+		return FindBlockByOffset(&m_blocks->at(0), offset);
 	}
 };
